@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2020", // Modern JS output
+    "module": "commonjs", // Required for Node.js
+    "rootDir": "src", // Source folder
+    "outDir": "dist", // Build output
+    "strict": true, // Strong type safety
+    "esModuleInterop": true // Allows import express from "express"
+  },
+  "exclude": [
+    "node_modules",
+    "frontend"
+  ]
+}

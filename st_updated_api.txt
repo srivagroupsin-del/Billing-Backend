@@ -1,0 +1,625 @@
+Storage Module API Guide (For Frontend)
+Base URL
+/api/storage
+Authentication
+
+All APIs require header:
+
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: application/json
+
+business_id is automatically taken from the token.
+
+1. Create Storage Type
+
+Creates a storage unit like Warehouse / Showroom / Store.
+
+Endpoint
+POST /api/storage/type
+Request Body
+{
+  "name": "Main Warehouse"
+}
+Response
+{
+  "success": true,
+  "message": "Storage type created",
+  "data": {
+    "id": 1
+  }
+}
+2. Get Storage Types
+
+Returns all storage types for the business.
+
+Endpoint
+GET /api/storage/types
+Response
+{
+  "success": true,
+  "message": "Storage types fetched",
+  "data": [
+    {
+      "id": 1,
+      "business_id": 1,
+      "name": "Main Warehouse"
+    }
+  ]
+}
+3. Create Address Field
+
+Defines address fields for storage.
+
+Example fields:
+
+Place
+Address
+Landmark
+Pincode
+Endpoint
+POST /api/storage/address-field
+Request
+{
+  "storage_type_id": 1,
+  "field_name": "Place"
+}
+4. Get Address Fields
+Endpoint
+GET /api/storage/address-fields/:storageTypeId
+
+Example:
+
+GET /api/storage/address-fields/1
+Response
+{
+  "success": true,
+  "message": "Address fields fetched",
+  "data": [
+    {
+      "id": 1,
+      "storage_type_id": 1,
+      "field_name": "Place"
+    }
+  ]
+}
+5. Create Storage Structure Level
+
+Defines the warehouse hierarchy.
+
+Example structure:
+
+Rack
+ → Shelf
+ → Container
+ → Partition
+Endpoint
+POST /api/storage/structure
+Create Rack
+{
+  "storage_type_id": 1,
+  "name": "Rack",
+  "parent_id": null,
+  "level_order": 1,
+  "is_partitionable": false
+}
+Create Shelf
+{
+  "storage_type_id": 1,
+  "name": "Shelf",
+  "parent_id": 1,
+  "level_order": 2,
+  "is_partitionable": false
+}
+Create Container (Partitionable)
+{
+  "storage_type_id": 1,
+  "name": "Container",
+  "parent_id": 2,
+  "level_order": 3,
+  "is_partitionable": true,
+  "partition_rows": 3,
+  "partition_columns": 4
+}
+
+Meaning:
+
+3 rows
+4 columns
+= 12 partitions
+
+Generated automatically:
+
+A1 A2 A3 A4
+B1 B2 B3 B4
+C1 C2 C3 C4
+6. Get Structure Levels
+Endpoint
+GET /api/storage/structure/:storageTypeId
+
+Example:
+
+GET /api/storage/structure/1
+Response
+{
+  "success": true,
+  "message": "Structure levels fetched",
+  "data": [
+    {
+      "id": 1,
+      "name": "Rack"
+    },
+    {
+      "id": 2,
+      "name": "Shelf"
+    },
+    {
+      "id": 3,
+      "name": "Container"
+    }
+  ]
+}
+7. Create Storage Location
+
+Creates actual locations inside the warehouse.
+
+Example structure:
+
+Warehouse
+  Rack R1
+    Shelf S1
+      Container C1
+Create Rack Location
+Endpoint
+POST /api/storage/location
+Request
+{
+  "storage_type_id": 1,
+  "parent_id": null,
+  "level_id": 1,
+  "code": "R1",
+  "name": "Rack 1"
+}
+Create Shelf Location
+{
+  "storage_type_id": 1,
+  "parent_id": 1,
+  "level_id": 2,
+  "code": "S1",
+  "name": "Shelf 1"
+}
+Create Container Location
+{
+  "storage_type_id": 1,
+  "parent_id": 3,
+  "level_id": 3,
+  "code": "C1",
+  "name": "Container 1"
+}
+
+If container level is partitionable, partitions will be created automatically.
+
+Example generated locations:
+
+C1-A1
+C1-A2
+C1-A3
+C1-A4
+C1-B1
+C1-B2
+...
+8. Get Storage Locations
+
+Returns the hierarchical storage tree.
+
+Endpoint
+GET /api/storage/locations/:storageTypeId
+
+Example:
+
+GET /api/storage/locations/1
+Response
+{
+  "success": true,
+  "message": "Locations fetched",
+  "data": [
+    {
+      "id": 1,
+      "code": "R1",
+      "name": "Rack 1",
+      "children": [
+        {
+          "id": 3,
+          "code": "S1",
+          "name": "Shelf 1",
+          "children": [
+            {
+              "id": 5,
+              "code": "C1",
+              "name": "Container 1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+This allows frontend to render a tree view.
+
+9. Delete Storage Location
+Endpoint
+DELETE /api/storage/location/:id
+
+Example
+
+DELETE /api/storage/location/5
+Recommended Setup Flow
+
+Frontend should call APIs in this order:
+
+1 Create Storage Type
+2 Create Address Fields
+3 Create Structure Levels
+4 Create Locations
+5 Fetch Locations Tree
+Example Final Warehouse Layout
+Main Warehouse
+  Rack R1
+    Shelf S1
+      Container C1
+        A1
+        A2
+        A3
+        A4
+
+Products can later be stored at:
+
+R1 → S1 → C1 → A2
+
+✅ This format is ready to send to frontend developers.
+
+Storage Module API Guide (Frontend)
+Base URL
+/api/storage
+Authentication
+
+All APIs require:
+
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: application/json
+
+business_id is automatically extracted from the JWT token.
+
+STORAGE SYSTEM OVERVIEW
+
+The storage system works in two stages.
+
+1️⃣ Define Storage Structure (Template)
+
+Define how the warehouse is organized.
+
+Example structure:
+
+Floor
+  → Block
+    → Rack
+      → Shelf
+        → Container
+          → Partition
+
+This structure is defined once.
+
+2️⃣ Create Actual Locations
+
+Create the real physical places inside the warehouse.
+
+Example:
+
+Main Warehouse
+  Floor F1
+    Block B1
+      Rack R1
+        Shelf S1
+          Container C1
+            A1
+            A2
+            A3
+
+Products will later be stored in these locations.
+
+Example product location:
+
+F1 → B1 → R1 → S1 → C1 → A2
+1️⃣ Create Storage Type
+
+Represents a warehouse / showroom / store.
+
+Example:
+
+Main Warehouse
+Cold Storage
+Retail Store
+Endpoint
+POST /api/storage/type
+Request
+{
+  "name": "Main Warehouse"
+}
+Response
+{
+  "success": true,
+  "message": "Storage type created",
+  "data": {
+    "id": 1
+  }
+}
+2️⃣ Get Storage Types
+Endpoint
+GET /api/storage/types
+Response
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "business_id": 1,
+      "name": "Main Warehouse"
+    }
+  ]
+}
+3️⃣ Create Storage Address Fields
+
+Optional address fields for storage.
+
+Examples:
+
+Place
+Address
+Landmark
+Pincode
+Endpoint
+POST /api/storage/address-field
+Request
+{
+  "storage_type_id": 1,
+  "field_name": "Place"
+}
+4️⃣ Define Storage Structure
+
+Defines the hierarchy of the warehouse.
+
+Example:
+
+Floor → Block → Rack → Shelf → Container
+Endpoint
+POST /api/storage/structure
+Create Floor
+{
+  "storage_type_id": 1,
+  "name": "Floor",
+  "parent_id": null,
+  "level_order": 1,
+  "is_partitionable": false
+}
+Create Block
+{
+  "storage_type_id": 1,
+  "name": "Block",
+  "parent_id": 1,
+  "level_order": 2,
+  "is_partitionable": false
+}
+Create Rack
+{
+  "storage_type_id": 1,
+  "name": "Rack",
+  "parent_id": 2,
+  "level_order": 3,
+  "is_partitionable": false
+}
+Create Shelf
+{
+  "storage_type_id": 1,
+  "name": "Shelf",
+  "parent_id": 3,
+  "level_order": 4,
+  "is_partitionable": false
+}
+Create Container (Partitionable)
+{
+  "storage_type_id": 1,
+  "name": "Container",
+  "parent_id": 4,
+  "level_order": 5,
+  "is_partitionable": true,
+  "partition_rows": 3,
+  "partition_columns": 4
+}
+
+Meaning:
+
+3 rows
+4 columns
+= 12 partitions
+
+Auto generated partitions:
+
+A1 A2 A3 A4
+B1 B2 B3 B4
+C1 C2 C3 C4
+5️⃣ Get Storage Structure
+
+Returns defined structure.
+
+Endpoint
+GET /api/storage/structure/:storageTypeId
+
+Example:
+
+GET /api/storage/structure/1
+
+Response:
+
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Floor"
+    },
+    {
+      "id": 2,
+      "name": "Block"
+    },
+    {
+      "id": 3,
+      "name": "Rack"
+    },
+    {
+      "id": 4,
+      "name": "Shelf"
+    },
+    {
+      "id": 5,
+      "name": "Container"
+    }
+  ]
+}
+6️⃣ Create Storage Locations
+
+Creates actual physical locations.
+
+Example structure:
+
+Warehouse
+  Floor F1
+    Block B1
+      Rack R1
+        Shelf S1
+          Container C1
+Create Floor Location
+POST /api/storage/location
+{
+  "storage_type_id": 1,
+  "parent_id": null,
+  "level_id": 1,
+  "code": "F1",
+  "name": "Floor 1"
+}
+Create Block
+{
+  "storage_type_id": 1,
+  "parent_id": 1,
+  "level_id": 2,
+  "code": "B1",
+  "name": "Block 1"
+}
+Create Rack
+{
+  "storage_type_id": 1,
+  "parent_id": 2,
+  "level_id": 3,
+  "code": "R1",
+  "name": "Rack 1"
+}
+Create Shelf
+{
+  "storage_type_id": 1,
+  "parent_id": 3,
+  "level_id": 4,
+  "code": "S1",
+  "name": "Shelf 1"
+}
+Create Container
+{
+  "storage_type_id": 1,
+  "parent_id": 4,
+  "level_id": 5,
+  "code": "C1",
+  "name": "Container 1"
+}
+
+Partitions will be automatically created.
+
+Example:
+
+C1-A1
+C1-A2
+C1-A3
+C1-A4
+C1-B1
+C1-B2
+7️⃣ Get Storage Locations Tree
+
+Returns hierarchical structure.
+
+Endpoint
+GET /api/storage/locations/:storageTypeId
+
+Response:
+
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "code": "F1",
+      "name": "Floor 1",
+      "children": [
+        {
+          "id": 2,
+          "code": "B1",
+          "name": "Block 1",
+          "children": [
+            {
+              "id": 3,
+              "code": "R1",
+              "name": "Rack 1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Frontend can render this as a tree view.
+
+8️⃣ Delete Storage Location
+DELETE /api/storage/location/:id
+
+Example:
+
+DELETE /api/storage/location/5
+Recommended Setup Flow (Frontend)
+
+Call APIs in this order:
+
+1 Create Storage Type
+2 Create Address Fields
+3 Define Structure (Floor → Block → Rack → Shelf → Container)
+4 Create Actual Locations
+5 Fetch Location Tree
+Example Final Warehouse Layout
+Main Warehouse
+  Floor F1
+    Block B1
+      Rack R1
+        Shelf S1
+          Container C1
+            A1
+            A2
+            A3
+            A4
+
+Products will later be stored at:
+
+F1 → B1 → R1 → S1 → C1 → A2
+
+This version is much clearer for frontend developers because it separates:
+
+structure
+
+real locations
+
+storage usage
