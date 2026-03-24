@@ -268,6 +268,14 @@ export class StorageController {
     try {
       const businessId = req.user?.business_id;
 
+      if (!req.body.storage_type_id) {
+        return res.status(400).json({ message: "storage_type_id required" });
+      }
+
+      if (!req.body.fields || !Array.isArray(req.body.fields)) {
+        return res.status(400).json({ message: "fields array required" });
+      }
+
       await this.service.saveAddressValues(businessId!, req.body);
 
       res.json({
@@ -307,12 +315,9 @@ export class StorageController {
   updateAddressValue = async (req: AuthRequest, res: Response) => {
     const businessId = req.user?.business_id;
     const { id } = req.params;
+    const { value } = req.body;
 
-    await this.service.updateAddressValue(
-      Number(id),
-      req.body.value,
-      businessId!,
-    );
+    await this.service.updateAddressValue(Number(id), value, businessId!);
 
     res.json({ success: true });
   };

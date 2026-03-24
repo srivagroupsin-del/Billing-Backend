@@ -372,13 +372,13 @@ export class StorageRepository {
       businessId,
       storage_type_id,
       f.field_id,
-      f.value,
+      f.value ?? null,
     ]);
 
     await pool.query(
       `INSERT INTO storage_address_values
-    (business_id,storage_type_id,field_id,field_value)
-    VALUES ?`,
+     (business_id, storage_type_id, field_id, field_value)
+     VALUES ?`,
       [values],
     );
   }
@@ -403,9 +403,9 @@ export class StorageRepository {
   async updateAddressValue(id: number, value: string, businessId: number) {
     await pool.execute(
       `UPDATE storage_address_values
-     SET field_value=?
-     WHERE id=? AND business_id=?`,
-      [value, id, businessId],
+     SET field_value = ?
+     WHERE id = ? AND business_id = ?`,
+      [value ?? null, id, businessId],
     );
   }
 

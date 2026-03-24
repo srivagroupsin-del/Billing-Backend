@@ -1,8 +1,6 @@
 import productPool from "../../config/productDb";
 
-export const getBusinessCategoryGroups = async (
-  business_id: number
-) => {
+export const getBusinessCategoryGroups = async (business_id: number) => {
   const [rows] = await productPool.query(
     `SELECT 
         BCG.id,
@@ -17,8 +15,7 @@ export const getBusinessCategoryGroups = async (
       LEFT JOIN srivagroupsin_product_db_2.category_group CG
           ON CG.id = BCG.category_group_id
       WHERE B.id = ?;`,
-    [business_id]
+    [business_id],
   );
-
   return rows;
 };

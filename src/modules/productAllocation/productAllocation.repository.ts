@@ -1,19 +1,12 @@
 import pool from "../../config/db";
 
 export class ProductAllocationRepository {
-
   /* ===============================
      ALLOCATE PRODUCTS
   =============================== */
   async allocateProducts(businessId: number, data: any) {
-
-    const {
-      setup_id,
-      category_group_id,
-      category_id,
-      brand_id,
-      products
-    } = data;
+    const { setup_id, category_group_id, category_id, brand_id, products } =
+      data;
 
     const values = products.map((p: any) => [
       businessId,
@@ -23,7 +16,7 @@ export class ProductAllocationRepository {
       brand_id ?? null,
       p.product_id,
       p.min_sale_qty ?? 1,
-      p.max_sale_qty ?? null
+      p.max_sale_qty ?? null,
     ]);
 
     const [result]: any = await pool.query(
@@ -33,7 +26,7 @@ export class ProductAllocationRepository {
       ON DUPLICATE KEY UPDATE
         min_sale_qty = VALUES(min_sale_qty),
         max_sale_qty = VALUES(max_sale_qty)`,
-      [values]
+      [values],
     );
 
     return result;
@@ -43,7 +36,6 @@ export class ProductAllocationRepository {
      GET ALLOCATED PRODUCTS
   =============================== */
   async getAllocatedProducts(businessId: number) {
-
     const [rows]: any = await pool.execute(
       `
       SELECT 
@@ -79,8 +71,9 @@ export class ProductAllocationRepository {
         JOIN srivagroupsin_product_db_2.product p 
             ON p.id = bpa.product_id
 
-        WHERE bpa.business_id = ?`,
-      [businessId]
+        WHERE bpa.business_id = ?
+        AND bpa.is_active = 1`,
+      [businessId],
     );
 
     return rows;
@@ -90,13 +83,12 @@ export class ProductAllocationRepository {
      UPDATE PRODUCT LIMITS
   =============================== */
   async updateAllocation(id: number, businessId: number, data: any) {
-
     const {
       category_group_id,
       category_id,
       brand_id,
       min_sale_qty,
-      max_sale_qty
+      max_sale_qty,
     } = data;
 
     const [result]: any = await pool.execute(
@@ -114,8 +106,8 @@ export class ProductAllocationRepository {
         min_sale_qty ?? 1,
         max_sale_qty ?? null,
         id,
-        businessId
-      ]
+        businessId,
+      ],
     );
 
     return result.affectedRows;
@@ -125,14 +117,13 @@ export class ProductAllocationRepository {
      DELETE ALLOCATION
   =============================== */
   async deleteAllocation(id: number, businessId: number) {
-
     const [result]: any = await pool.execute(
-      `DELETE FROM business_product_allocations
-       WHERE id = ? AND business_id = ?`,
-      [id, businessId]
+      `UPDATE business_product_allocations
+        SET is_active = 0
+        WHERE product_id = ? AND business_id = ?`,
+      [id, businessId],
     );
 
     return result.affectedRows;
   }
-
 }
