@@ -1,7 +1,7 @@
 import * as repo from "./GroupCatgeorybrandallProductList.repository";
 
 export const getCategoryGroupMappings = async (
-  category_group_ids: number[]
+  category_group_ids: number[],
 ) => {
   const rows: any = await repo.getCategoryGroupMappings(category_group_ids);
 
@@ -40,7 +40,7 @@ export const getCategoryGroupMappings = async (
       const group = grouped[row.category_group_id];
 
       let parent = group.primary_categories.find(
-        (p: any) => p.id === row.parent_category_id
+        (p: any) => p.id === row.parent_category_id,
       );
 
       // If parent not found → auto create parent
@@ -48,12 +48,13 @@ export const getCategoryGroupMappings = async (
         parent = {
           id: row.parent_category_id,
           name: row.parent_category_name,
-          secondary_categories: [],   // ✅ CORRECT
+          secondary_categories: [], // ✅ CORRECT
         };
         group.primary_categories.push(parent);
       }
 
-      parent.secondary_categories.push({   // ✅ CORRECT
+      parent.secondary_categories.push({
+        // ✅ CORRECT
         id: row.category_id,
         name: row.category_name,
       });
@@ -64,7 +65,7 @@ export const getCategoryGroupMappings = async (
 };
 
 export const getCategoryBrandStructure = async (
-  category_group_ids: number[]
+  category_group_ids: number[],
 ) => {
   const rows: any = await repo.getCategoryBrandMappings(category_group_ids);
 
@@ -87,8 +88,9 @@ export const getCategoryBrandStructure = async (
   // Create primary
   for (const row of rows) {
     if (row.category_type === "primary") {
-      const exists = grouped[row.category_group_id].primary_categories
-        .find((p: any) => p.id === row.category_id);
+      const exists = grouped[row.category_group_id].primary_categories.find(
+        (p: any) => p.id === row.category_id,
+      );
 
       if (!exists) {
         grouped[row.category_group_id].primary_categories.push({
@@ -107,7 +109,7 @@ export const getCategoryBrandStructure = async (
 
     if (row.category_type === "secondary") {
       let parent = group.primary_categories.find(
-        (p: any) => p.id === row.parent_category_id
+        (p: any) => p.id === row.parent_category_id,
       );
 
       if (!parent) {
@@ -121,7 +123,7 @@ export const getCategoryBrandStructure = async (
       }
 
       let secondary = parent.secondary_categories.find(
-        (s: any) => s.id === row.category_id
+        (s: any) => s.id === row.category_id,
       );
 
       if (!secondary) {
@@ -144,7 +146,7 @@ export const getCategoryBrandStructure = async (
     // If primary category has brands directly
     if (row.category_type === "primary" && row.brand_id) {
       const primary = group.primary_categories.find(
-        (p: any) => p.id === row.category_id
+        (p: any) => p.id === row.category_id,
       );
 
       primary.brands.push({
@@ -157,8 +159,11 @@ export const getCategoryBrandStructure = async (
   return Object.values(grouped);
 };
 
-export const getBrandWithProducts = async (category_id: number,brand_id: number) => {
-  const rows: any = await repo.getBrandProducts(category_id,brand_id);
+export const getBrandWithProducts = async (
+  category_id: number,
+  brand_id: number,
+) => {
+  const rows: any = await repo.getBrandProducts(category_id, brand_id);
 
   if (!rows || rows.length === 0) return null;
 
@@ -171,13 +176,47 @@ export const getBrandWithProducts = async (category_id: number,brand_id: number)
         name: r.product_name,
         mrp: Number(r.mrp),
         description: r.description || null,
+
+        // ✅ ADD THIS
+        alternative_names: new Set(),
+
+        // ✅ GST ARRAY
+        gst: [],
       });
     }
+
+    const product = productsMap.get(r.product_id);
+
+    // ✅ HANDLE ALTERNATIVE NAMES
+    if (r.alternative_name) {
+      product.alternative_names.add(r.alternative_name);
+    }
+
+    // ✅ HANDLE GST (avoid duplicates)
+    if (r.tax_id) {
+      const exists = product.gst.some((g: any) => g.tax_id === r.tax_id);
+
+      if (!exists) {
+        product.gst.push({
+          tax_id: r.tax_id,
+          gst_variant_id: r.gst_variant_id,
+          gst_value: r.gst_value,
+          hsn_code: r.hsn_code,
+          status: r.tax_status,
+        });
+      }
+    }
   });
+
+  // ✅ convert Set → Array
+  const products = Array.from(productsMap.values()).map((p: any) => ({
+    ...p,
+    alternative_names: Array.from(p.alternative_names),
+  }));
 
   return {
     brand_id: rows[0].brand_id,
     brand_name: rows[0].brand_name,
-    products: Array.from(productsMap.values()),
+    products,
   };
 };

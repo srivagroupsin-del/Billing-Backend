@@ -1,7 +1,6 @@
 import { BusinessModulesRepository } from "./businessModules.repository";
 
 export class BusinessModulesService {
-
   private repository = new BusinessModulesRepository();
 
   /* MODULES */
@@ -25,7 +24,11 @@ export class BusinessModulesService {
   /* MODULE ITEMS */
 
   createModuleItem(businessId: number, data: any) {
-    return this.repository.createModuleItem(businessId, data.module_id, data.name);
+    return this.repository.createModuleItem(
+      businessId,
+      data.module_id,
+      data.name,
+    );
   }
 
   getModuleItems(businessId: number, moduleId: number) {
@@ -39,5 +42,4 @@ export class BusinessModulesService {
   deleteModuleItem(id: number, businessId: number) {
     return this.repository.deleteModuleItem(id, businessId);
   }
-
 }

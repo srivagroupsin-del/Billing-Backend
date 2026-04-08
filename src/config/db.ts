@@ -17,7 +17,7 @@ export const checkDBConnection = async () => {
     console.log("MySQL connected successfully");
     connection.release();
   } catch (error) {
-    console.error("MySQL connection failed:",error);
+    console.error("MySQL connection failed:", error);
   }
 };
 

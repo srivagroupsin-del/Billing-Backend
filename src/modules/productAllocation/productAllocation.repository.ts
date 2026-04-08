@@ -39,40 +39,65 @@ export class ProductAllocationRepository {
     const [rows]: any = await pool.execute(
       `
       SELECT 
-        cg.id AS category_group_id,
-        cg.name AS category_group_name,
+    cg.id AS category_group_id,
+    cg.name AS category_group_name,
 
-        c.id AS category_id,
-        c.category_name AS category_name,
-        c.category_type AS category_type, -- Primary / Secondary
-        c.parent_category_id,
+    c.id AS category_id,
+    c.category_name,
+    c.category_type,
+    c.parent_category_id,
 
-        b.id AS brand_id,
-        b.brand_name AS brand_name,
+    b.id AS brand_id,
+    b.brand_name,
 
-        p.id AS product_id,
-        p.product_name,
-        p.mrp,
+    p.id AS product_id,
+    p.product_name,
+    p.mrp,
 
-        bpa.min_sale_qty,
-        bpa.max_sale_qty
+    bpa.min_sale_qty,
+    bpa.max_sale_qty,
 
-        FROM business_product_allocations bpa
+    -- ✅ Alternative Names
+    pan.alternative_name,
 
-        JOIN srivagroupsin_product_db_2.category_group cg 
-            ON cg.id = bpa.category_group_id
+    -- ✅ GST
+    pt.id AS tax_id,
+    pt.gst_variant_id,
+    vf.value AS gst_value,
+    pt.hsn_code,
+    pt.status AS tax_status
 
-        JOIN srivagroupsin_product_db_2.category c 
-            ON c.id = bpa.category_id
+FROM business_product_allocations bpa
 
-        JOIN srivagroupsin_product_db_2.brand b 
-            ON b.id = bpa.brand_id
+JOIN srivagroupsin_product_db_2.category_group cg 
+    ON cg.id = bpa.category_group_id
 
-        JOIN srivagroupsin_product_db_2.product p 
-            ON p.id = bpa.product_id
+JOIN srivagroupsin_product_db_2.category c 
+    ON c.id = bpa.category_id
 
-        WHERE bpa.business_id = ?
-        AND bpa.is_active = 1`,
+JOIN srivagroupsin_product_db_2.brand b 
+    ON b.id = bpa.brand_id
+
+JOIN srivagroupsin_product_db_2.product p 
+    ON p.id = bpa.product_id
+
+-- ✅ Alternative names
+LEFT JOIN srivagroupsin_product_db_2.product_alternative_names pan
+    ON pan.product_id = p.id
+
+-- ✅ Tax
+LEFT JOIN srivagroupsin_product_db_2.product_tax pt
+    ON pt.product_id = p.id
+    AND pt.is_active = 1
+    AND pt.status = 'active'
+
+LEFT JOIN srivagroupsin_product_db_2.variants_fields vf
+    ON vf.id = pt.gst_variant_id
+    AND vf.is_active = 1
+
+WHERE bpa.business_id = ?
+AND bpa.is_active = 1
+      `,
       [businessId],
     );
 

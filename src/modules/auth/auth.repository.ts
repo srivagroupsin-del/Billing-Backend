@@ -30,12 +30,19 @@ export const createUser = async (data: {
   password: string;
 }) => {
   const [result]: any = await pool.query(
-    `INSERT INTO users (name, email, password, status)
-     VALUES (?, ?, ?, 'active')`,
-    [data.name, data.email, data.password],
+    `INSERT INTO users (user_id, name, email, password, status, is_active)
+     VALUES (?, ?, ?, ?, 'active', 1)`,
+    [data.user_id, data.name, data.email, data.password],
   );
 
   return result.insertId;
+};
+
+export const updateUserMainId = async (userId: number, userMainId: string) => {
+  await pool.query(`UPDATE users SET user_id = ? WHERE id = ?`, [
+    userMainId,
+    userId,
+  ]);
 };
 
 export const validateUserBusiness = async (
@@ -54,4 +61,28 @@ export const validateUserBusiness = async (
   );
 
   return rows.length > 0;
+};
+
+export const updateCentralToken = async (
+  userId: number,
+  token: string,
+  expiry: string,
+) => {
+  await pool.query(
+    `
+    UPDATE users
+    SET central_token = ?, central_token_expiry = ?
+    WHERE id = ?
+    `,
+    [token, expiry, userId],
+  );
+};
+
+export const getUserById = async (id: number) => {
+  const [rows]: any = await pool.query(
+    `SELECT * FROM users WHERE id = ? LIMIT 1`,
+    [id],
+  );
+
+  return rows[0] || null;
 };

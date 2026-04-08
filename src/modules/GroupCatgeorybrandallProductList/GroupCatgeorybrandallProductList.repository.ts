@@ -1,8 +1,6 @@
 import productPool from "../../config/productDb";
 
-export const getCategoryGroupMappings = async (
-  category_group_id: number[]
-) => {
+export const getCategoryGroupMappings = async (category_group_id: number[]) => {
   const [rows] = await productPool.query(
     `SELECT 
         CGM.category_group_id,
@@ -34,14 +32,14 @@ export const getCategoryGroupMappings = async (
 
      WHERE CGM.category_group_id IN (?)
        AND CGM.is_active = 1`,
-    [category_group_id]
+    [category_group_id],
   );
 
   return rows;
 };
 
 export const getCategoryBrandMappings = async (
-  category_group_ids: number[]
+  category_group_ids: number[],
 ) => {
   const [rows] = await productPool.query(
     `
@@ -88,7 +86,7 @@ export const getCategoryBrandMappings = async (
    WHERE CGM.category_group_id IN (?)
    AND CGM.is_active = 1
     `,
-    [category_group_ids]
+    [category_group_ids],
   );
 
   return rows;
@@ -96,48 +94,73 @@ export const getCategoryBrandMappings = async (
 
 export const getBrandProducts = async (
   category_id: number,
-  brand_id: number
+  brand_id: number,
 ) => {
-
   const [rows] = await productPool.query(
-    `
-    SELECT 
-        B.id AS brand_id,
-        B.brand_name,
+    `SELECT 
+         B.id AS brand_id,
+         B.brand_name,
 
-        P.id AS product_id,
-        P.product_name,
-        P.mrp,
-        P.description
+         P.id AS product_id,
+         P.product_name,
+         P.mrp,
+         P.description,
 
-     FROM product_category_brand PCB
+         -- ✅ Alternative Names
+         GROUP_CONCAT(DISTINCT PAN.alternative_name SEPARATOR ', ') AS alternative_names,
 
-     INNER JOIN product P
-        ON P.id = PCB.product_id
-        AND P.is_active = 1
-        AND P.status = 'active'
+         -- ✅ GST DATA
+         PT.id AS tax_id,
+         PT.gst_variant_id,
+         VF.value AS gst_value,
+         PT.hsn_code,
+         PT.status AS tax_status
 
-     INNER JOIN category_brand_mapping CBM
-        ON CBM.id = PCB.category_brand_id
-        AND CBM.is_active = 1
-        AND CBM.status = 'active'
+      FROM product_category_brand PCB
 
-     INNER JOIN category C
-        ON C.id = CBM.category_id
-        AND C.is_active = 1
-        AND C.status = 'active'
+      INNER JOIN product P
+         ON P.id = PCB.product_id
+         AND P.is_active = 1
+         AND P.status = 'active'
 
-     INNER JOIN brand B
-        ON B.id = CBM.brand_id
-        AND B.is_active = 1
-        AND B.status = 'active'
+      INNER JOIN category_brand_mapping CBM
+         ON CBM.id = PCB.category_brand_id
+         AND CBM.is_active = 1
+         AND CBM.status = 'active'
 
-     WHERE B.id = ?
-       AND C.id = ?
-       AND PCB.is_active = 1
-       AND PCB.status = 'active'
+      INNER JOIN category C
+         ON C.id = CBM.category_id
+         AND C.is_active = 1
+         AND C.status = 'active'
+
+      INNER JOIN brand B
+         ON B.id = CBM.brand_id
+         AND B.is_active = 1
+         AND B.status = 'active'
+
+      -- ✅ Alternative Names JOIN
+      LEFT JOIN product_alternative_names PAN
+         ON PAN.product_id = P.id
+
+      -- ✅ GST JOIN
+      LEFT JOIN product_tax PT
+         ON PT.product_id = P.id
+         AND PT.is_active = 1
+         AND PT.status = 'active'
+
+      LEFT JOIN variants_fields VF
+         ON VF.id = PT.gst_variant_id
+         AND VF.is_active = 1
+
+      WHERE B.id = ?
+      AND C.id = ?
+      AND PCB.is_active = 1
+      AND PCB.status = 'active'
+
+      GROUP BY 
+         P.id, PT.id
     `,
-    [brand_id, category_id]
+    [brand_id, category_id],
   );
 
   return rows;

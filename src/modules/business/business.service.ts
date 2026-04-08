@@ -1,49 +1,43 @@
-import * as repo from "./business.repository";
+import axios from "axios";
+import * as authRepo from "../auth/auth.repository";
 
-export const getAllBusinesses = async () => {
-  const data = await repo.getAllBusinesses();
+export const getBusinessList = async (userId: number) => {
+  // 🔹 1. Get user from DB
+  const user = await authRepo.getUserById(userId);
 
-  return {
-    count: (data as any[]).length,
-    data,
-  };
-};
-
-export const getBusinessById = async (id: number) => {
-  const business = await repo.getBusinessById(id);
-
-  if (!business) {
-    throw new Error("Business not found");
+  if (!user) {
+    throw new Error("User not found");
   }
 
-  return business;
-};
-
-export const getBusinessByUserId = async (userId: number) => {
-  const business = await repo.getBusinessesByUserId(userId);
-
-  if (!business) {
-    throw new Error("Business not found");
+  if (!user.central_token) {
+    throw new Error("Central token missing");
   }
 
-  return business;
-};
-
-export const getAllOperationTypes = async () => {
-  const data = await repo.getAllOperationTypes();
-  return data;
-};
-
-export const enableStorageTypes = async (businessId: number, storageTypeIds: number[]) => {
-  if (!Array.isArray(storageTypeIds)) {
-    throw new Error("storage_type_ids must be an array");
+  if (!user.user_id) {
+    throw new Error("user_main_id missing");
   }
 
-  await repo.enableStorageTypes(businessId, storageTypeIds);
-};
+  // 🔒 Expiry check
+  if (new Date(user.central_token_expiry) < new Date()) {
+    throw new Error("Session expired. Please login again.");
+  }
 
-export const getBusinessStorageTypes = async (businessId:number) => {
+  // 🔹 2. Call THEIR API
+  const response = await axios.get(
+    `https://user.jobes24x7.com/business-cre/main/${user.user_id}`,
+    {
+      headers: {
+        Authorization: `Bearer ${user.central_token}`,
+        Accept: "application/json",
+      },
+    },
+  );
 
-  return repo.getBusinessStorageTypes(businessId);
+  const apiData = response.data?.data;
 
+  if (!apiData || apiData.result !== "Success") {
+    throw new Error("Failed to fetch business list");
+  }
+
+  return apiData.data; // 🔥 actual business array
 };

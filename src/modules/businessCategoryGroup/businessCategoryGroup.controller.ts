@@ -4,19 +4,27 @@ import * as service from "./businessCategoryGroup.service";
 
 export const getBusinessCategoryGroups = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   try {
     const businessId = req.user?.business_id;
+    const userId = req.user?.id; // ✅ ADD THIS
 
     if (!businessId) {
-    return res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: "Please select a business",
-    });
+      });
     }
 
-    const data = await service.getBusinessCategoryGroups(businessId);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const data = await service.getBusinessCategoryGroups(businessId, userId);
 
     res.json({ success: true, data });
   } catch (err: any) {

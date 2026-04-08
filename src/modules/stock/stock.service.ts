@@ -16,12 +16,21 @@ export class StockService {
         data,
       );
 
-      if (data.variants?.length) {
-        await this.repo.saveVariants(conn, stockId, data.variants);
+      for (const v of data.variants || []) {
+        const totalStockTypeQty = (v.stock_types || []).reduce(
+          (sum: number, t: any) => sum + (t.qty || 0),
+          0,
+        );
+
+        if (totalStockTypeQty !== v.qty) {
+          throw new Error(
+            `Stock mismatch for variant ${v.variant_id}. Total ${v.qty}, but split ${totalStockTypeQty}`,
+          );
+        }
       }
 
-      if (data.stock_types?.length) {
-        await this.repo.saveStockTypes(conn, stockId, data.stock_types);
+      if (data.variants?.length) {
+        await this.repo.saveVariants(conn, stockId, data.variants);
       }
 
       await conn.commit();
@@ -43,18 +52,38 @@ export class StockService {
 
     const variants = await this.repo.getVariantsByStockIds(stockIds);
     const types = await this.repo.getStockTypesByStockIds(stockIds);
+    const stockTypeMaster = await this.repo.getStockTypeMaster();
 
     const variantMap: any = {};
     const typeMap: any = {};
 
+    // group variants
     variants.forEach((v: any) => {
       if (!variantMap[v.stock_id]) variantMap[v.stock_id] = [];
       variantMap[v.stock_id].push(v);
     });
 
+    // group stock types by variant_id
     types.forEach((t: any) => {
-      if (!typeMap[t.stock_id]) typeMap[t.stock_id] = [];
-      typeMap[t.stock_id].push(t);
+      if (!typeMap[t.variant_id]) typeMap[t.variant_id] = [];
+      typeMap[t.variant_id].push(t);
+    });
+
+    // attach stock types to variants
+    Object.values(variantMap).forEach((variantList: any) => {
+      variantList.forEach((v: any) => {
+        const existing = typeMap[v.id] || [];
+
+        v.stock_types = stockTypeMaster.map((type: any) => {
+          const found = existing.find((t: any) => t.stock_type_id === type.id);
+
+          return {
+            stock_type_id: type.id,
+            name: type.name,
+            qty: found?.qty || 0,
+          };
+        });
+      });
     });
 
     return stocks.map((row: any) => ({
@@ -79,19 +108,52 @@ export class StockService {
         : null,
 
       variants: variantMap[row.stock_id] || [],
-      stock_types: typeMap[row.stock_id] || [],
     }));
   }
+
   async getStockById(stockId: number, businessId: number) {
     const stock = await this.repo.getStock(stockId, businessId);
 
     const variants = await this.repo.getVariants(stockId);
     const types = await this.repo.getStockTypes(stockId);
+    const stockTypeMaster = await this.repo.getStockTypeMaster();
+
+    const typeMap: any = {};
+
+    types.forEach((t: any) => {
+      if (!typeMap[t.variant_id]) typeMap[t.variant_id] = [];
+      typeMap[t.variant_id].push(t);
+    });
+
+    // attach stock types
+    variants.forEach((v: any) => {
+      const existing = typeMap[v.id] || [];
+
+      v.stock_types = stockTypeMaster.map((type: any) => {
+        const found = existing.find((t: any) => t.stock_type_id === type.id);
+
+        return {
+          stock_type_id: type.id,
+          name: type.name,
+          qty: found?.qty || 0,
+        };
+      });
+    });
+
+    // ✅ ADD THIS PART (IMPORTANT)
+    let location_path: any[] = [];
+
+    if (stock?.storage_location_id) {
+      location_path = await this.repo.getLocationPath(
+        stock.storage_location_id,
+        businessId,
+      );
+    }
 
     return {
       ...stock,
       variants,
-      stock_types: types,
+      location_path,
     };
   }
 
@@ -107,14 +169,28 @@ export class StockService {
 
       await this.repo.updateStock(conn, stockId, businessId, data);
 
+      // ✅ FIRST delete child
+      await this.repo.deleteStockTypes(conn, stockId);
+
+      // ✅ THEN delete parent
       await this.repo.deleteVariants(conn, stockId);
-      if (data.variants?.length) {
-        await this.repo.saveVariants(conn, stockId, data.variants);
+
+      for (const v of data.variants || []) {
+        const totalStockTypeQty = (v.stock_types || []).reduce(
+          (sum: number, t: any) => sum + (t.qty || 0),
+          0,
+        );
+
+        if (totalStockTypeQty !== v.qty) {
+          throw new Error(
+            `Stock mismatch for variant ${v.variant_id}. Total ${v.qty}, but split ${totalStockTypeQty}`,
+          );
+        }
       }
 
-      await this.repo.deleteStockTypes(conn, stockId);
-      if (data.stock_types?.length) {
-        await this.repo.saveStockTypes(conn, stockId, data.stock_types);
+      // ✅ THEN insert again
+      if (data.variants?.length) {
+        await this.repo.saveVariants(conn, stockId, data.variants);
       }
 
       await conn.commit();

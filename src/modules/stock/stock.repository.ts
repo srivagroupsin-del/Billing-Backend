@@ -43,32 +43,40 @@ export class StockRepository {
   }
 
   async saveVariants(conn: any, stockId: number, variants: any[]) {
-    const values = variants.map((v) => [
-      stockId,
-      v.variant_id,
-      v.buying_price,
-      v.profit_margin,
-      v.selling_price,
-      v.qty,
-    ]);
+    for (const v of variants) {
+      const [result]: any = await conn.execute(
+        `INSERT INTO product_stock_variants
+       (stock_id, variant_id, buying_price, profit_margin, selling_price, qty)
+       VALUES (?,?,?,?,?,?)`,
+        [
+          stockId,
+          v.variant_id,
+          v.buying_price || 0,
+          v.profit_margin || 0,
+          v.selling_price || 0,
+          v.qty || 0,
+        ],
+      );
 
-    await conn.query(
-      `INSERT INTO product_stock_variants
-     (stock_id, variant_id, buying_price, profit_margin, selling_price, qty)
-     VALUES ?`,
-      [values],
-    );
-  }
+      const variantRowId = result.insertId;
 
-  async saveStockTypes(conn: any, stockId: number, types: any[]) {
-    const values = types.map((t) => [stockId, t.stock_type_id, t.qty]);
+      // ✅ SAVE STOCK TYPES UNDER THIS VARIANT
+      if (v.stock_types?.length) {
+        const values = v.stock_types.map((t: any) => [
+          stockId,
+          variantRowId, // 🔥 important
+          t.stock_type_id,
+          t.qty,
+        ]);
 
-    await conn.query(
-      `INSERT INTO product_stock_types
-     (stock_id, stock_type_id, qty)
-     VALUES ?`,
-      [values],
-    );
+        await conn.query(
+          `INSERT INTO product_stock_types
+        (stock_id, variant_id, stock_type_id, qty)
+        VALUES ?`,
+          [values],
+        );
+      }
+    }
   }
 
   async getAllLocations(businessId: number) {
@@ -136,8 +144,11 @@ export class StockRepository {
   }
 
   async getVariantsByStockIds(stockIds: number[]) {
+    if (!stockIds.length) return []; // 🔥 safety
+
     const [rows]: any = await pool.query(
       `SELECT 
+      psv.id,                -- ✅ ADD THIS
       psv.stock_id,
       psv.variant_id,
       vm.name AS variant_name,
@@ -156,9 +167,12 @@ export class StockRepository {
   }
 
   async getStockTypesByStockIds(stockIds: number[]) {
+    if (!stockIds.length) return []; // ✅ add this
+
     const [rows]: any = await pool.query(
       `SELECT 
       pst.stock_id,
+      pst.variant_id,
       pst.stock_type_id,
       stm.name,
       pst.qty
@@ -172,13 +186,20 @@ export class StockRepository {
     return rows;
   }
 
+  async getStockTypeMaster() {
+    const [rows]: any = await pool.execute(
+      `SELECT id, name FROM stock_type_master`,
+    );
+
+    return rows;
+  }
+
   async getStockTypes(stockId: number) {
     const [rows]: any = await pool.execute(
       `SELECT * FROM product_stock_types
        WHERE stock_id = ?`,
       [stockId],
     );
-
     return rows;
   }
 
@@ -223,5 +244,29 @@ export class StockRepository {
     await conn.execute(`DELETE FROM product_stock_types WHERE stock_id = ?`, [
       stockId,
     ]);
+  }
+
+  async getLocationPath(locationId: number, businessId: number) {
+    const path: any[] = [];
+
+    let currentId = locationId;
+
+    while (currentId) {
+      const [rows]: any = await pool.execute(
+        `SELECT id, name, parent_id, level_id
+       FROM storage_locations
+       WHERE id = ? AND business_id = ?`,
+        [currentId, businessId],
+      );
+
+      if (!rows.length) break;
+
+      const node = rows[0];
+
+      path.unshift(node);
+      currentId = node.parent_id;
+    }
+
+    return path;
   }
 }

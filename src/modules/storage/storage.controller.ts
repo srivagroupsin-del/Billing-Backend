@@ -124,9 +124,11 @@ export class StorageController {
         data: { id },
       });
     } catch (error: any) {
-      res
-        .status(500)
-        .json({ success: false, message: error.message, data: {} });
+      res.status(400).json({
+        success: false,
+        error_type: error.type || "CREATE_STRUCTURE_LEVEL_ERROR",
+        message: error.message,
+      });
     }
   };
 
@@ -163,9 +165,11 @@ export class StorageController {
         .status(200)
         .json({ success: true, message: "Structure level updated", data: {} });
     } catch (error: any) {
-      res
-        .status(500)
-        .json({ success: false, message: error.message, data: {} });
+      res.status(400).json({
+        success: false,
+        error_type: error.type || "UPDATE_STRUCTURE_LEVEL_ERROR",
+        message: error.message,
+      });
     }
   };
 
@@ -178,12 +182,32 @@ export class StorageController {
         .status(200)
         .json({ success: true, message: "Structure level deleted", data: {} });
     } catch (error: any) {
-      res
-        .status(500)
-        .json({ success: false, message: error.message, data: {} });
+      res.status(400).json({
+        success: false,
+        error_type: error.type || "DELETE_STRUCTURE_LEVEL_ERROR",
+        message: error.message,
+      });
     }
   };
 
+  updateStructureOrder = async (req: AuthRequest, res: Response) => {
+    try {
+      console.log("🔥 REORDER HIT:", req.body);
+
+      await this.service.updateStructureOrder(req.body.structure);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("❌ REORDER ERROR:", err.message);
+
+      res.status(400).json({
+        success: false,
+        error_type: "UPDATE_STRUCTURE_LEVEL_ERROR",
+        message: err.message,
+      });
+    }
+  };
+  
   // Storage Locations
   createLocation = async (req: AuthRequest, res: Response) => {
     try {
@@ -193,9 +217,11 @@ export class StorageController {
         .status(201)
         .json({ success: true, message: "Location created", data: { id } });
     } catch (error: any) {
-      res
-        .status(500)
-        .json({ success: false, message: error.message, data: {} });
+      res.status(400).json({
+        success: false,
+        error_type: error.type || "CREATE_LOCATION_ERROR",
+        message: error.message,
+      });
     }
   };
 

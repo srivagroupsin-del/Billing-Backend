@@ -3,11 +3,5 @@ import * as controller from "./business.controller";
 
 const router = Router();
 
-router.get("/my-businesses", controller.getBusinessByUserId);
-router.get("/business_operation", controller.getAllOperationTypes);
-router.post("/storage-types", controller.enableStorageTypes);
-router.get("/storage-types", controller.getBusinessStorageTypes);
-router.get("/", controller.getAllBusinesses);
-router.get("/:id", controller.getBusinessById);
-
+router.get("/my-businesses", controller.listBusiness);
 export default router;

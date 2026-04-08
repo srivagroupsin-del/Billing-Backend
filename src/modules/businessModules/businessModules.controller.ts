@@ -3,16 +3,23 @@ import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { BusinessModulesService } from "./businessModules.service";
 
 export class BusinessModulesController {
-
   private service = new BusinessModulesService();
 
   /* MODULES */
 
   createModule = async (req: AuthRequest, res: Response) => {
-    const businessId = req.user?.business_id;
-    const id = await this.service.createModule(businessId!, req.body);
+    try {
+      const businessId = req.user?.business_id;
 
-    res.json({ success: true, data: { id } });
+      const id = await this.service.createModule(businessId!, req.body);
+
+      res.json({ success: true, data: { id } });
+    } catch (err: any) {
+      res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
   };
 
   getModules = async (req: AuthRequest, res: Response) => {
@@ -23,12 +30,19 @@ export class BusinessModulesController {
   };
 
   updateModule = async (req: AuthRequest, res: Response) => {
-    const businessId = req.user?.business_id;
-    const { id } = req.params;
+    try {
+      const businessId = req.user?.business_id;
+      const { id } = req.params;
 
-    await this.service.updateModule(Number(id), businessId!, req.body);
+      await this.service.updateModule(Number(id), businessId!, req.body);
 
-    res.json({ success: true });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
   };
 
   deleteModule = async (req: AuthRequest, res: Response) => {
@@ -41,19 +55,29 @@ export class BusinessModulesController {
   };
 
   /* MODULE ITEMS */
-
   createModuleItem = async (req: AuthRequest, res: Response) => {
-    const businessId = req.user?.business_id;
-    const id = await this.service.createModuleItem(businessId!, req.body);
+    try {
+      const businessId = req.user?.business_id;
 
-    res.json({ success: true, data: { id } });
+      const id = await this.service.createModuleItem(businessId!, req.body);
+
+      res.json({ success: true, data: { id } });
+    } catch (err: any) {
+      res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
   };
 
   getModuleItems = async (req: AuthRequest, res: Response) => {
     const businessId = req.user?.business_id;
     const { moduleId } = req.params;
 
-    const data = await this.service.getModuleItems(businessId!, Number(moduleId));
+    const data = await this.service.getModuleItems(
+      businessId!,
+      Number(moduleId),
+    );
 
     res.json({ success: true, data });
   };
@@ -75,5 +99,4 @@ export class BusinessModulesController {
 
     res.json({ success: true });
   };
-
 }
