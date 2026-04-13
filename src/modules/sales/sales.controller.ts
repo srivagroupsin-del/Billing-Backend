@@ -30,10 +30,22 @@ export class SalesController {
       });
     }
   };
+
   getBillById = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
+
       const billId = Number(req.params.id);
+      if (!billId) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid Bill ID",
+        });
+      }
 
       const bill = await this.service.getBillById(businessId!, billId);
 
@@ -52,6 +64,10 @@ export class SalesController {
   getBillByNumber = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
 
       const billNumber = Array.isArray(req.params.billNumber)
         ? req.params.billNumber[0]
@@ -74,6 +90,10 @@ export class SalesController {
   getBillsByBusiness = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
 
       const bills = await this.service.getBillsByBusiness(businessId!);
 
@@ -92,12 +112,16 @@ export class SalesController {
   getFullBillDetails = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
-      const billId = Number(req.params.id);
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
 
-      if (!businessId) {
+      const billId = Number(req.params.id);
+      if (!billId) {
         return res.status(400).json({
           success: false,
-          message: "Business ID missing",
+          message: "Invalid Bill ID",
         });
       }
 

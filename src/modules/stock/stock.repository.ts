@@ -2,13 +2,23 @@ import pool from "../../config/db";
 
 export class StockRepository {
   async createOrUpdateStock(conn: any, businessId: number, data: any) {
-    const { product_id, supplier_id, is_self_produced, storage_location_id } =
-      data;
+    const { product_id, supplier_id, is_self_produced } = data;
+
+    console.log("🔥 STOCK INPUT:", {
+      businessId,
+      product_id,
+      supplier_id,
+    });
+    console.log("🔥 STOCK INPUT:", data);
 
     const [rows]: any = await conn.execute(
       `SELECT id FROM product_stock
-     WHERE business_id=? AND product_id=? AND storage_location_id=?`,
-      [businessId, product_id, storage_location_id],
+   WHERE business_id=? 
+   AND product_id=? 
+   AND (supplier_id <=> ?)
+   AND is_self_produced = ?
+   AND is_deleted = 0`,
+      [businessId, product_id, supplier_id ?? null, is_self_produced ? 1 : 0],
     );
 
     let stockId;
@@ -20,20 +30,14 @@ export class StockRepository {
         `UPDATE product_stock
        SET supplier_id=?, is_self_produced=?
        WHERE id=?`,
-        [supplier_id || null, is_self_produced ? 1 : 0, stockId],
+        [supplier_id ?? null, is_self_produced ? 1 : 0, stockId],
       );
     } else {
       const [result]: any = await conn.execute(
         `INSERT INTO product_stock
-       (business_id, product_id, supplier_id, is_self_produced, storage_location_id)
-       VALUES (?,?,?,?,?)`,
-        [
-          businessId,
-          product_id,
-          supplier_id || null,
-          is_self_produced ? 1 : 0,
-          storage_location_id,
-        ],
+       (business_id, product_id, supplier_id, is_self_produced)
+       VALUES (?,?,?,?)`,
+        [businessId, product_id, supplier_id ?? null, is_self_produced ? 1 : 0],
       );
 
       stockId = result.insertId;
@@ -43,6 +47,8 @@ export class StockRepository {
   }
 
   async saveVariants(conn: any, stockId: number, variants: any[]) {
+    const variantMap: any = {};
+
     for (const v of variants) {
       const [result]: any = await conn.execute(
         `INSERT INTO product_stock_variants
@@ -60,34 +66,59 @@ export class StockRepository {
 
       const variantRowId = result.insertId;
 
-      // ✅ SAVE STOCK TYPES UNDER THIS VARIANT
+      variantMap[v.variant_id] = variantRowId;
+
       if (v.stock_types?.length) {
         const values = v.stock_types.map((t: any) => [
           stockId,
-          variantRowId, // 🔥 important
+          variantRowId,
           t.stock_type_id,
           t.qty,
         ]);
 
         await conn.query(
           `INSERT INTO product_stock_types
-        (stock_id, variant_id, stock_type_id, qty)
-        VALUES ?`,
+         (stock_id, variant_id, stock_type_id, qty)
+         VALUES ?`,
           [values],
         );
       }
     }
+
+    return variantMap;
   }
 
-  async getAllLocations(businessId: number) {
-    const [rows]: any = await pool.execute(
-      `SELECT id, name, parent_id
-     FROM storage_locations
-     WHERE business_id = ?`,
-      [businessId],
-    );
+  async saveStockLocations(data: any[], conn?: any) {
+    if (!data.length) return;
 
-    return rows;
+    const executor = conn || pool;
+
+    const values = data.map((d) => [
+      d.stock_variant_id,
+      d.stock_type_id,
+      d.location_id,
+      d.qty || 0,
+      d.business_id,
+    ]);
+
+    await executor.query(
+      `INSERT INTO product_stock_locations
+     (stock_variant_id, stock_type_id, location_id, qty, business_id)
+     VALUES ?
+     ON DUPLICATE KEY UPDATE qty = VALUES(qty)`,
+      [values],
+    );
+  }
+
+  async deleteStockLocations(conn: any, stockId: number) {
+    // Requirements say: must delete using JOIN on stock_variants
+    await conn.execute(
+      `DELETE psl FROM product_stock_locations psl
+     JOIN product_stock_variants psv 
+       ON psv.id = psl.stock_variant_id
+     WHERE psv.stock_id = ?`,
+      [stockId],
+    );
   }
 
   async getStocks(businessId: number) {
@@ -96,37 +127,23 @@ export class StockRepository {
       ps.id AS stock_id,
       ps.product_id,
       p.product_name,
-      ps.created_at,
-
-      s.id AS supplier_id,
-      s.name AS supplier_name,
-
-      sl.id AS location_id,
-      sl.name AS location_name,
-      sl.parent_id
-
+      ps.supplier_id,
+      ps.created_at
     FROM product_stock ps
-
     LEFT JOIN srivagroupsin_product_db_2.product p 
       ON p.id = ps.product_id
-
-    LEFT JOIN suppliers s 
-      ON s.id = ps.supplier_id
-
-    LEFT JOIN storage_locations sl 
-      ON sl.id = ps.storage_location_id
-
-    WHERE ps.business_id = ?
+    WHERE ps.business_id = ? 
+    AND ps.is_deleted = 0
     ORDER BY ps.id DESC`,
       [businessId],
     );
-
     return rows;
   }
+
   async getStock(stockId: number, businessId: number) {
     const [rows]: any = await pool.execute(
       `SELECT * FROM product_stock
-       WHERE id = ? AND business_id = ?`,
+       WHERE id = ? AND business_id = ? AND is_deleted = 0`,
       [stockId, businessId],
     );
 
@@ -136,51 +153,8 @@ export class StockRepository {
   async getVariants(stockId: number) {
     const [rows]: any = await pool.execute(
       `SELECT * FROM product_stock_variants
-       WHERE stock_id = ?`,
+       WHERE stock_id = ? AND is_deleted = 0`,
       [stockId],
-    );
-
-    return rows;
-  }
-
-  async getVariantsByStockIds(stockIds: number[]) {
-    if (!stockIds.length) return []; // 🔥 safety
-
-    const [rows]: any = await pool.query(
-      `SELECT 
-      psv.id,                -- ✅ ADD THIS
-      psv.stock_id,
-      psv.variant_id,
-      vm.name AS variant_name,
-      psv.buying_price,
-      psv.profit_margin,
-      psv.selling_price,
-      psv.qty
-    FROM product_stock_variants psv
-    LEFT JOIN product_variant_master vm 
-      ON vm.id = psv.variant_id
-    WHERE psv.stock_id IN (?)`,
-      [stockIds],
-    );
-
-    return rows;
-  }
-
-  async getStockTypesByStockIds(stockIds: number[]) {
-    if (!stockIds.length) return []; // ✅ add this
-
-    const [rows]: any = await pool.query(
-      `SELECT 
-      pst.stock_id,
-      pst.variant_id,
-      pst.stock_type_id,
-      stm.name,
-      pst.qty
-    FROM product_stock_types pst
-    LEFT JOIN stock_type_master stm 
-      ON stm.id = pst.stock_type_id
-    WHERE pst.stock_id IN (?)`,
-      [stockIds],
     );
 
     return rows;
@@ -188,7 +162,7 @@ export class StockRepository {
 
   async getStockTypeMaster() {
     const [rows]: any = await pool.execute(
-      `SELECT id, name FROM stock_type_master`,
+      `SELECT id, name FROM stock_type_master WHERE is_deleted = 0`,
     );
 
     return rows;
@@ -197,36 +171,52 @@ export class StockRepository {
   async getStockTypes(stockId: number) {
     const [rows]: any = await pool.execute(
       `SELECT * FROM product_stock_types
-       WHERE stock_id = ?`,
+       WHERE stock_id = ? AND is_deleted = 0`,
       [stockId],
     );
     return rows;
   }
 
+  async getStockLocations(stockId: number, businessId: number) {
+    const [rows]: any = await pool.execute(
+      `SELECT 
+      psl.*,
+      sl.name as location_name
+     FROM product_stock_locations psl
+     JOIN product_stock_variants psv 
+       ON psv.id = psl.stock_variant_id
+     LEFT JOIN storage_locations sl 
+       ON sl.id = psl.location_id
+     WHERE psv.stock_id = ?
+     AND psl.business_id = ?
+     AND sl.is_deleted = 0`,
+      [stockId, businessId],
+    );
+
+    return rows;
+  }
+
   async deleteStock(stockId: number, businessId: number) {
     await pool.execute(
-      `DELETE FROM product_stock
+      `UPDATE product_stock SET is_deleted = 1
        WHERE id = ? AND business_id = ?`,
       [stockId, businessId],
     );
   }
 
   async updateStock(conn: any, stockId: number, businessId: number, data: any) {
-    const { product_id, supplier_id, is_self_produced, storage_location_id } =
-      data;
+    const { product_id, supplier_id, is_self_produced } = data;
 
     await conn.execute(
       `UPDATE product_stock
      SET product_id = ?, 
          supplier_id = ?, 
-         is_self_produced = ?, 
-         storage_location_id = ?
+         is_self_produced = ?
      WHERE id = ? AND business_id = ?`,
       [
         product_id,
-        supplier_id || null,
+        supplier_id ?? null,
         is_self_produced ? 1 : 0,
-        storage_location_id || null,
         stockId,
         businessId,
       ],
@@ -235,38 +225,93 @@ export class StockRepository {
 
   async deleteVariants(conn: any, stockId: number) {
     await conn.execute(
-      `DELETE FROM product_stock_variants WHERE stock_id = ?`,
+      `UPDATE product_stock_variants SET is_deleted = 1 WHERE stock_id = ?`,
       [stockId],
     );
   }
 
   async deleteStockTypes(conn: any, stockId: number) {
-    await conn.execute(`DELETE FROM product_stock_types WHERE stock_id = ?`, [
-      stockId,
-    ]);
+    await conn.execute(
+      `UPDATE product_stock_types SET is_deleted = 1 WHERE stock_id = ?`,
+      [stockId],
+    );
   }
 
-  async getLocationPath(locationId: number, businessId: number) {
-    const path: any[] = [];
+  async updateSingleLocation(data: any) {
+    await pool.execute(
+      `INSERT INTO product_stock_locations
+     (stock_variant_id, stock_type_id, location_id, qty, business_id)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE qty = VALUES(qty)`,
+      [
+        data.stock_variant_id,
+        data.stock_type_id,
+        data.location_id,
+        data.qty,
+        data.business_id,
+      ],
+    );
+  }
 
-    let currentId = locationId;
+  async deleteSingleLocation(data: any, businessId: number) {
+    await pool.execute(
+      `DELETE FROM product_stock_locations
+     WHERE stock_variant_id = ?
+     AND stock_type_id = ?
+     AND location_id = ?
+     AND business_id = ?`,
+      [data.stock_variant_id, data.stock_type_id, data.location_id, businessId],
+    );
+  }
 
-    while (currentId) {
-      const [rows]: any = await pool.execute(
-        `SELECT id, name, parent_id, level_id
-       FROM storage_locations
-       WHERE id = ? AND business_id = ?`,
-        [currentId, businessId],
-      );
+  async validateLocationOwner(locationId: number, businessId: number) {
+    const [rows]: any = await pool.execute(
+      `SELECT id FROM storage_locations 
+       WHERE id = ? AND business_id = ? AND is_deleted = 0`,
+      [locationId, businessId],
+    );
+    return rows.length > 0;
+  }
 
-      if (!rows.length) break;
+  async getVariantsByStockIds(stockIds: number[]) {
+    if (!stockIds.length) return [];
 
-      const node = rows[0];
+    const [rows]: any = await pool.query(
+      `SELECT 
+      id,
+      stock_id,
+      variant_id,
+      buying_price,
+      profit_margin,
+      selling_price,
+      qty
+     FROM product_stock_variants
+     WHERE stock_id IN (?) 
+     AND is_deleted = 0`,
+      [stockIds],
+    );
 
-      path.unshift(node);
-      currentId = node.parent_id;
-    }
+    return rows;
+  }
 
-    return path;
+  async getStockTypesByStockIds(stockIds: number[]) {
+    if (!stockIds.length) return [];
+
+    const [rows]: any = await pool.query(
+      `SELECT 
+      pst.stock_id,
+      pst.variant_id,
+      pst.stock_type_id,
+      pst.qty,
+      stm.name
+     FROM product_stock_types pst
+     LEFT JOIN stock_type_master stm 
+       ON stm.id = pst.stock_type_id
+     WHERE pst.stock_id IN (?) 
+     AND pst.is_deleted = 0`,
+      [stockIds],
+    );
+
+    return rows;
   }
 }

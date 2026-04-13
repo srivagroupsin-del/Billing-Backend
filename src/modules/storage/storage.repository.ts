@@ -20,7 +20,7 @@ export class StorageRepository {
   async getStorageTypes(businessId: number) {
     const [rows]: any = await pool.execute(
       `SELECT * FROM storage_types
-       WHERE business_id = ?`,
+       WHERE business_id = ? AND is_deleted = 0`,
       [businessId],
     );
 
@@ -33,7 +33,7 @@ export class StorageRepository {
     const [result]: any = await pool.execute(
       `UPDATE storage_types
        SET name = ?
-       WHERE id = ? AND business_id = ?`,
+       WHERE id = ? AND business_id = ? AND is_deleted = 0`,
       [name, id, businessId],
     );
 
@@ -42,7 +42,8 @@ export class StorageRepository {
 
   async deleteStorageType(id: number, businessId: number) {
     const [result]: any = await pool.execute(
-      `DELETE FROM storage_types
+      `UPDATE storage_types
+       SET is_deleted = 1
        WHERE id = ? AND business_id = ?`,
       [id, businessId],
     );
@@ -53,7 +54,7 @@ export class StorageRepository {
   async countLocationsForStorageType(storageTypeId: number) {
     const [rows]: any = await pool.execute(
       `SELECT COUNT(*) as count FROM storage_locations 
-       WHERE storage_type_id = ?`,
+       WHERE storage_type_id = ? AND is_deleted = 0`,
       [storageTypeId],
     );
 
@@ -73,7 +74,8 @@ export class StorageRepository {
       `UPDATE storage_address_fields
        SET field_order = field_order + 1
        WHERE storage_type_id = ?
-       AND field_order >= ?`,
+       AND field_order >= ?
+       AND is_deleted = 0`,
       [storageTypeId, fieldOrder],
     );
 
@@ -91,7 +93,7 @@ export class StorageRepository {
     const [rows]: any = await pool.execute(
       `SELECT *
        FROM storage_address_fields
-       WHERE storage_type_id = ?
+       WHERE storage_type_id = ? AND is_deleted = 0
        ORDER BY field_order ASC`,
       [storageTypeId],
     );
@@ -112,7 +114,8 @@ export class StorageRepository {
       `SELECT * FROM storage_structure_levels
      WHERE business_id = ? 
      AND storage_type_id = ? 
-     AND level_order = ?`,
+     AND level_order = ?
+     AND is_deleted = 0`,
       [businessId, storageTypeId, levelOrder],
     );
 
@@ -132,7 +135,8 @@ export class StorageRepository {
       `UPDATE storage_structure_levels
        SET level_order = level_order + 1
        WHERE storage_type_id = ?
-       AND level_order >= ?`,
+       AND level_order >= ?
+       AND is_deleted = 0`,
       [storageTypeId, levelOrder],
     );
 
@@ -162,6 +166,7 @@ export class StorageRepository {
        FROM storage_structure_levels
        WHERE storage_type_id = ?
        AND business_id = ?
+       AND is_deleted = 0
        ORDER BY level_order ASC`,
       [storageTypeId, businessId],
     );
@@ -173,7 +178,7 @@ export class StorageRepository {
   async hasLocations(levelId: number) {
     const [rows]: any = await pool.execute(
       `SELECT COUNT(*) as count FROM storage_locations 
-       WHERE level_id = ?`,
+       WHERE level_id = ? AND is_deleted = 0`,
       [levelId],
     );
 
@@ -186,7 +191,7 @@ export class StorageRepository {
     businessId: number,
     excludeId?: number,
   ) {
-    let query = `SELECT COUNT(*) as count FROM storage_structure_levels WHERE storage_type_id = ? AND business_id = ? AND is_partitionable = true`;
+    let query = `SELECT COUNT(*) as count FROM storage_structure_levels WHERE storage_type_id = ? AND business_id = ? AND is_partitionable = true AND is_deleted = 0`;
     let params: any[] = [storageTypeId, businessId];
 
     if (excludeId) {
@@ -202,7 +207,7 @@ export class StorageRepository {
   async checkDuplicateStructureName(storageTypeId: number, name: string) {
     const [rows]: any = await pool.execute(
       `SELECT COUNT(*) as count FROM storage_structure_levels
-       WHERE storage_type_id = ? AND LOWER(name) = LOWER(?)`,
+       WHERE storage_type_id = ? AND LOWER(name) = LOWER(?) AND is_deleted = 0`,
       [storageTypeId, name],
     );
     return rows[0].count > 0;
@@ -212,7 +217,7 @@ export class StorageRepository {
   async getStructureLevelById(id: number, businessId: number) {
     const [rows]: any = await pool.execute(
       `SELECT * FROM storage_structure_levels
-     WHERE id = ? AND business_id = ?`,
+     WHERE id = ? AND business_id = ? AND is_deleted = 0`,
       [id, businessId],
     );
 
@@ -262,7 +267,7 @@ export class StorageRepository {
     const [result]: any = await pool.execute(
       `UPDATE storage_structure_levels
      SET ${fields.join(", ")}
-     WHERE id = ? AND business_id = ?`,
+     WHERE id = ? AND business_id = ? AND is_deleted = 0`,
       values,
     );
 
@@ -271,7 +276,8 @@ export class StorageRepository {
 
   async deleteStructureLevel(id: number, businessId: number) {
     const [result]: any = await pool.execute(
-      `DELETE FROM storage_structure_levels
+      `UPDATE storage_structure_levels
+       SET is_deleted = 1
        WHERE id = ?
        AND business_id = ?`,
       [id, businessId],
@@ -288,7 +294,8 @@ export class StorageRepository {
       `UPDATE storage_structure_levels
        SET level_order = level_order - 1
        WHERE storage_type_id = ?
-       AND level_order > ?`,
+       AND level_order > ?
+       AND is_deleted = 0`,
       [storageTypeId, deletedOrder],
     );
   }
@@ -301,21 +308,23 @@ export class StorageRepository {
   async hasProductInLocation(locationId: number, businessId: number) {
     const [rows]: any = await pool.execute(
       `SELECT COUNT(*) as count
-     FROM product_stock
-     WHERE storage_location_id = ? AND business_id = ?`,
+     FROM product_stock_locations psl
+     JOIN product_stock ps ON ps.id = (SELECT stock_id FROM product_stock_variants WHERE id = psl.stock_variant_id LIMIT 1)
+     WHERE psl.location_id = ? AND psl.business_id = ? AND ps.is_deleted = 0`,
       [locationId, businessId],
     );
 
-    return Number(rows[0].count) > 0; // ✅ IMPORTANT
+    return Number(rows[0].count) > 0;
   }
 
   // 🔥 Check if stock exists in this structure (level)
   async hasProductInStructure(levelId: number, businessId: number) {
     const [rows]: any = await pool.execute(
       `SELECT COUNT(*) as count
-       FROM product_stock ps
-       JOIN storage_locations sl ON sl.id = ps.storage_location_id
-       WHERE sl.level_id = ? AND ps.business_id = ?`,
+       FROM product_stock_locations psl
+       JOIN storage_locations sl ON sl.id = psl.location_id
+       JOIN product_stock ps ON ps.id = (SELECT stock_id FROM product_stock_variants WHERE id = psl.stock_variant_id LIMIT 1)
+       WHERE sl.level_id = ? AND psl.business_id = ? AND ps.is_deleted = 0 AND sl.is_deleted = 0`,
       [levelId, businessId],
     );
 
@@ -326,7 +335,7 @@ export class StorageRepository {
   async hasChildLocations(locationId: number) {
     const [rows]: any = await pool.execute(
       `SELECT COUNT(*) as count FROM storage_locations 
-       WHERE parent_id = ?`,
+       WHERE parent_id = ? AND is_deleted = 0`,
       [locationId],
     );
 
@@ -338,11 +347,14 @@ export class StorageRepository {
       `SELECT 
         ps.product_id,
         p.product_name
-     FROM product_stock ps
+     FROM product_stock_locations psl
+     JOIN product_stock_variants psv ON psv.id = psl.stock_variant_id
+     JOIN product_stock ps ON ps.id = psv.stock_id
      LEFT JOIN srivagroupsin_product_db_2.product p 
        ON p.id = ps.product_id
-     WHERE ps.storage_location_id = ? 
-     AND ps.business_id = ?
+     WHERE psl.location_id = ? 
+     AND psl.business_id = ?
+     AND ps.is_deleted = 0
      LIMIT 3`,
       [locationId, businessId],
     );
@@ -353,6 +365,7 @@ export class StorageRepository {
   async checkDuplicateLocationCode(
     code: string,
     businessId: number,
+    storageTypeId: number,
     parentId: number | null,
     excludeId?: number,
   ) {
@@ -361,14 +374,15 @@ export class StorageRepository {
     FROM storage_locations
     WHERE code = ? 
     AND business_id = ?
-    AND parent_id ${parentId ? "= ?" : "IS NULL"}
+    AND storage_type_id = ?
+    AND is_deleted = 0
+    AND (
+      (? IS NULL AND parent_id IS NULL)
+      OR parent_id = ?
+    )
   `;
 
-    const params: any[] = [code, businessId];
-
-    if (parentId) {
-      params.push(parentId);
-    }
+    const params: any[] = [code, businessId, storageTypeId, parentId, parentId];
 
     if (excludeId) {
       query += ` AND id != ?`;
@@ -393,6 +407,7 @@ export class StorageRepository {
     AND storage_type_id = ?
     AND level_id = ?
     AND code IS NOT NULL
+    AND is_deleted = 0
     ORDER BY CAST(SUBSTRING(code, 2) AS UNSIGNED) DESC
     LIMIT 1
     `,
@@ -404,7 +419,7 @@ export class StorageRepository {
 
   async getLocationById(id: number) {
     const [rows]: any = await pool.execute(
-      `SELECT * FROM storage_locations WHERE id = ?`,
+      `SELECT * FROM storage_locations WHERE id = ? AND is_deleted = 0`,
       [id],
     );
     return rows[0];
@@ -484,7 +499,7 @@ export class StorageRepository {
     const [result]: any = await executor.execute(
       `UPDATE storage_locations
      SET ${fields.join(", ")}
-     WHERE id = ? AND business_id = ?`,
+     WHERE id = ? AND business_id = ? AND is_deleted = 0`,
       values,
     );
 
@@ -518,7 +533,8 @@ export class StorageRepository {
       `SELECT *
        FROM storage_locations
        WHERE storage_type_id = ?
-       AND business_id = ?`,
+       AND business_id = ?
+       AND is_deleted = 0`,
       [storageTypeId, businessId],
     );
 
@@ -527,7 +543,7 @@ export class StorageRepository {
 
   async getChildLocations(parentId: number) {
     const [rows]: any = await pool.execute(
-      `SELECT * FROM storage_locations WHERE parent_id = ?`,
+      `SELECT * FROM storage_locations WHERE parent_id = ? AND is_deleted = 0`,
       [parentId],
     );
     return rows;
@@ -537,7 +553,7 @@ export class StorageRepository {
     const executor = conn || pool;
 
     await executor.execute(
-      `DELETE FROM storage_locations WHERE parent_id = ?`,
+      `UPDATE storage_locations SET is_deleted = 1 WHERE parent_id = ?`,
       [parentId],
     );
   }
@@ -546,8 +562,9 @@ export class StorageRepository {
     const executor = conn || pool;
 
     const [result]: any = await executor.execute(
-      `DELETE FROM storage_locations
-     WHERE id = ? AND business_id = ?`,
+      `UPDATE storage_locations
+       SET is_deleted = 1
+       WHERE id = ? AND business_id = ?`,
       [id, businessId],
     );
 
@@ -588,6 +605,8 @@ export class StorageRepository {
       ON saf.id = sav.field_id
     WHERE sav.storage_type_id=? 
     AND sav.business_id=?
+    AND sav.is_deleted = 0
+    AND saf.is_deleted = 0
     ORDER BY sav.address_group_id`,
       [storageTypeId, businessId],
     );
@@ -599,15 +618,16 @@ export class StorageRepository {
     await pool.execute(
       `UPDATE storage_address_values
      SET field_value = ?
-     WHERE id = ? AND business_id = ?`,
+     WHERE id = ? AND business_id = ? AND is_deleted = 0`,
       [value ?? null, id, businessId],
     );
   }
 
   async deleteAddressValue(id: number, businessId: number) {
     await pool.execute(
-      `DELETE FROM storage_address_values
-     WHERE id=? AND business_id=?`,
+      `UPDATE storage_address_values
+       SET is_deleted = 1
+       WHERE id=? AND business_id=?`,
       [id, businessId],
     );
   }

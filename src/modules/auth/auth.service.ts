@@ -7,7 +7,7 @@ export const login = async (email: string, password: string) => {
   try {
     // 🔹 Call central API
     const response = await axios.post(
-      "https://user.jobes24x7.com/login/authenticate",
+      "https://user.jobes24x7.com/api/login/authenticate",
       { email, password },
       {
         headers: {
@@ -35,36 +35,32 @@ export const login = async (email: string, password: string) => {
     // const expiry = apiData.expires_at;
 
     // 🔹 Find or create user
+    // 🔹 Find or create user
     let user = await authRepo.findUserByEmail(userData.email);
 
+    let userId: number;
+
     if (!user) {
-      const newUserId = await authRepo.createUser({
+      userId = await authRepo.createUser({
         user_id: userData.user_main_id,
         name: userData.user_name,
         email: userData.email,
         password: "external_auth",
       });
-
-      user = {
-        id: newUserId,
-        email: userData.email,
-        user_id: userData.user_main_id, // 🔥 ADD THIS
-      };
     } else {
-      // 🔥 Update user_main_id if already exists
-      await authRepo.updateUserMainId(user.id, userData.user_main_id);
+      userId = user.id;
 
-      user.user_id = userData.user_main_id; // keep in memory
+      await authRepo.updateUserMainId(user.id, userData.user_main_id);
     }
 
-    // 🔹 Store central token
-    await authRepo.updateCentralToken(user.id, centralToken, expiry);
+    // ✅ ALWAYS SAVE TOKEN (USE userId, NOT user.id)
+    await authRepo.updateCentralToken(userId, centralToken, expiry);
 
     // 🔹 Generate YOUR token
     const token = jwt.sign(
       {
-        id: user.id,
-        email: user.email,
+        id: userId,
+        email: userData.email,
       },
       process.env.JWT_SECRET!,
       { expiresIn: "7d" },

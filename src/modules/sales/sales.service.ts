@@ -2,11 +2,11 @@ import pool from "../../config/db";
 import { SalesRepository } from "./sales.repository";
 import { MovementRepository } from "../stockMovement/movement.repository";
 import { CustomerRepository } from "../customer/customer.repository";
+import axios from "axios";
 
 export class SalesService {
   private repo = new SalesRepository();
   private movementRepo = new MovementRepository();
-  private customerRepo = new CustomerRepository();
 
   async createBill(businessId: number, data: any) {
     const connection = await pool.getConnection();
@@ -22,33 +22,15 @@ export class SalesService {
 
       await connection.beginTransaction();
 
-      let customerId = null;
+      // 🔥 NEW CUSTOMER FLOW (NO API CALL)
+      const customerId = data.external_customer_id || null;
+      const customerType = data.customer_type || "USER";
+      const customerName = data.customer_name || null;
+      const customerPhone = data.customer_phone || null;
+      const customer_meta = data.customer_meta || null;
 
-      // 🔹 Customer Handling
-      if (data.customer_phone) {
-        const existingCustomer = await this.customerRepo.findByPhone(
-          connection,
-          businessId,
-          data.customer_phone,
-        );
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-        } else {
-          customerId = await this.customerRepo.createCustomer(
-            connection,
-            businessId,
-            data.customer_name,
-            data.customer_phone,
-          );
-        }
-      } else {
-        const walkIn = await this.customerRepo.getWalkInCustomer(
-          connection,
-          businessId,
-        );
-
-        customerId = walkIn.id;
+      if (!customerId) {
+        throw new Error("Customer ID is required");
       }
 
       // 🔹 Generate Bill Number
@@ -59,13 +41,22 @@ export class SalesService {
 
       // 🔹 Create Bill
       const billId = await this.repo.createBill(connection, businessId, {
-        ...data,
-        customer_id: customerId,
+        external_customer_id: customerId,
+        customer_type: customerType,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_meta: customer_meta,
         bill_number: billNumber,
+        total_amount: data.total_amount,
+        discount: data.discount,
+        tax: data.tax,
+        final_amount: data.final_amount,
+        payment_method: data.payment_method,
       });
 
       // 🔹 Insert Bill Items
       await this.repo.insertBillItems(connection, billId, data.items);
+
       // 🔹 Process Stock
       for (const item of data.items) {
         if (!item.product_id || !item.stock_id || !item.variant_id) {
@@ -80,9 +71,8 @@ export class SalesService {
           throw new Error("Stock type not selected");
         }
 
-        const stockId = item.stock_id; // ✅ FIRST define this
+        const stockId = item.stock_id;
 
-        // 🔥 VALIDATE STOCK TYPE BELONGS TO STOCK
         const isValidType = await this.repo.validateStockType(
           connection,
           stockId,
@@ -93,7 +83,6 @@ export class SalesService {
           throw new Error(`Invalid stock type for product ${item.product_id}`);
         }
 
-        // 1. Reduce Variant
         await this.repo.reduceVariantStockSafe(
           connection,
           stockId,
@@ -101,7 +90,6 @@ export class SalesService {
           item.qty,
         );
 
-        // 2. Reduce Stock Type
         await this.repo.reduceStockTypeSafe(
           connection,
           stockId,
@@ -109,7 +97,6 @@ export class SalesService {
           item.qty,
         );
 
-        // ✅ 5. Movement
         await this.movementRepo.createMovement(connection, {
           business_id: businessId,
           product_id: item.product_id,
@@ -122,6 +109,7 @@ export class SalesService {
           reference_id: billId,
         });
       }
+
       await connection.commit();
 
       return {
@@ -150,6 +138,16 @@ export class SalesService {
 
       return {
         ...bill,
+        customer: {
+          id: bill.external_customer_id,
+          type: bill.customer_type,
+          name: bill.customer_name,
+          phone: bill.customer_phone,
+          meta:
+            typeof bill.customer_meta === "string"
+              ? JSON.parse(bill.customer_meta)
+              : bill.customer_meta || null,
+        },
         items,
       };
     } finally {
@@ -175,6 +173,16 @@ export class SalesService {
 
       return {
         ...bill,
+        customer: {
+          id: bill.external_customer_id,
+          type: bill.customer_type,
+          name: bill.customer_name,
+          phone: bill.customer_phone,
+          meta:
+            typeof bill.customer_meta === "string"
+              ? JSON.parse(bill.customer_meta)
+              : bill.customer_meta || null,
+        },
         items,
       };
     } finally {
@@ -198,73 +206,27 @@ export class SalesService {
     const connection = await pool.getConnection();
 
     try {
-      // 🔹 1. Get Bill + Customer
-      const [billRows]: any = await connection.execute(
-        `SELECT 
-          sb.*,
-          c.name as customer_name,
-          c.phone as customer_phone
-       FROM sales_bills sb
-       LEFT JOIN customers c ON c.id = sb.customer_id
-       WHERE sb.id = ? AND sb.business_id = ?`,
-        [billId, businessId],
-      );
+      // 🔹 1. Get Bill
+      const bill = await this.repo.getBillById(connection, businessId, billId);
 
-      if (billRows.length === 0) {
+      if (!bill) {
         throw new Error("Bill not found");
       }
 
-      const bill = billRows[0];
-
       // 🔹 2. Get Items
-      const [items]: any = await connection.execute(
-        `SELECT 
-      sbi.id,
-      sbi.bill_id,
-      sbi.product_id,
-      sbi.variant_id,
-      sbi.stock_type_id,
-      sbi.price,
-      sbi.qty,
-      sbi.total,
-
-      -- ✅ PRODUCT FROM DIFFERENT DB
-      p.product_name,
-
-      -- ✅ SAME DB TABLES
-      v.name AS variant_name,
-      st.name AS stock_type_name
-
-   FROM sales_bill_items sbi
-
-   LEFT JOIN srivagroupsin_product_db_2.product p
-     ON p.id = sbi.product_id
-
-   LEFT JOIN product_variant_master  v
-     ON v.id = sbi.variant_id
-
-   LEFT JOIN stock_type_master st
-     ON st.id = sbi.stock_type_id
-
-   WHERE sbi.bill_id = ?`,
-        [billId],
-      );
-
-      // 🔹 3. Get Stock Movements
-      const [movements]: any = await connection.execute(
-        `SELECT *
-       FROM stock_movements
-       WHERE reference_type = 'SALE_BILL'
-       AND reference_id = ?`,
-        [billId],
-      );
+      const items = await this.repo.getBillItems(connection, billId);
 
       return {
         bill,
         customer: {
-          id: bill.customer_id,
+          id: bill.external_customer_id,
+          type: bill.customer_type,
           name: bill.customer_name,
           phone: bill.customer_phone,
+          meta:
+            typeof bill.customer_meta === "string"
+              ? JSON.parse(bill.customer_meta)
+              : bill.customer_meta || null,
         },
         items,
       };

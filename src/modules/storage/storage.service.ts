@@ -351,7 +351,8 @@ export class StorageService {
       const exists = await this.repository.checkDuplicateLocationCode(
         data.code,
         businessId,
-        data.parent_id,
+        data.storage_type_id,
+        data.parent_id ?? null,
       );
 
       if (exists) {
@@ -429,10 +430,17 @@ export class StorageService {
 
     // duplicate check
     if (data.code) {
+      // 🔥 BEFORE duplicate check
+      const location = await this.repository.getLocationById(id);
+
+      const storageTypeId = data.storage_type_id ?? location.storage_type_id;
+      const parentId = data.parent_id ?? location.parent_id ?? null;
+
       const exists = await this.repository.checkDuplicateLocationCode(
         data.code,
         businessId,
-        data.parent_id ?? null, // ✅ correct
+        storageTypeId,
+        parentId,
         id,
       );
 
@@ -448,8 +456,6 @@ export class StorageService {
       id,
       businessId,
     );
-
-    console.log("hasProducts:", hasProducts);
 
     if (hasProducts) {
       if (

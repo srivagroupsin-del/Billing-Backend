@@ -13,17 +13,21 @@ export class ProductAllocationController {
     try {
       const businessId = req.user?.business_id;
       if (!businessId)
-        return res.status(400).json({ success: false, message: "Business ID missing", data: {} });
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
 
       const ids = await this.service.allocateProducts(businessId, req.body);
 
       res.status(201).json({
         success: true,
         message: "Products allocated",
-        data: ids
+        data: ids,
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message, data: {} });
+      res
+        .status(500)
+        .json({ success: false, message: error.message, data: {} });
     }
   };
 
@@ -31,21 +35,34 @@ export class ProductAllocationController {
     try {
       const businessId = req.user?.business_id;
 
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
+
       const data = await this.service.getAllocatedProducts(businessId!);
 
       res.status(200).json({
         success: true,
         message: "Allocated products fetched",
-        data
+        data,
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message, data: {} });
+      res
+        .status(500)
+        .json({ success: false, message: error.message, data: {} });
     }
   };
 
   updateAllocation = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
+
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
+
       const { id } = req.params;
 
       await this.service.updateAllocation(Number(id), businessId!, req.body);
@@ -53,16 +70,23 @@ export class ProductAllocationController {
       res.status(200).json({
         success: true,
         message: "Allocation updated",
-        data: {}
+        data: {},
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message, data: {} });
+      res
+        .status(500)
+        .json({ success: false, message: error.message, data: {} });
     }
   };
 
   deleteAllocation = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
+      if (!businessId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Business ID missing", data: {} });
+
       const { id } = req.params;
 
       await this.service.deleteAllocation(Number(id), businessId!);
@@ -70,10 +94,12 @@ export class ProductAllocationController {
       res.status(200).json({
         success: true,
         message: "Allocation deleted",
-        data: {}
+        data: {},
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message, data: {} });
+      res
+        .status(500)
+        .json({ success: false, message: error.message, data: {} });
     }
   };
 }

@@ -24,7 +24,7 @@ export const getBusinessList = async (userId: number) => {
 
   // 🔹 2. Call THEIR API
   const response = await axios.get(
-    `https://user.jobes24x7.com/business-cre/main/${user.user_id}`,
+    `https://user.jobes24x7.com/api/business-cre/main/${user.user_id}`,
     {
       headers: {
         Authorization: `Bearer ${user.central_token}`,

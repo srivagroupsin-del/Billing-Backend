@@ -1,9 +1,14 @@
+import axios from "axios";
 import pool from "../../config/db";
 import { StockRepository } from "./stock.repository";
+import * as authRepo from "../../modules/auth/auth.repository";
 
 export class StockService {
   private repo = new StockRepository();
 
+  // =========================
+  // ✅ STEP 1: SAVE STOCK ONLY
+  // =========================
   async saveStock(businessId: number, data: any) {
     const conn = await pool.getConnection();
 
@@ -23,9 +28,7 @@ export class StockService {
         );
 
         if (totalStockTypeQty !== v.qty) {
-          throw new Error(
-            `Stock mismatch for variant ${v.variant_id}. Total ${v.qty}, but split ${totalStockTypeQty}`,
-          );
+          throw new Error(`Stock mismatch for variant ${v.variant_id}`);
         }
       }
 
@@ -44,9 +47,103 @@ export class StockService {
     }
   }
 
-  async getStocks(businessId: number) {
+  // =========================
+  // ✅ STEP 2: ASSIGN STORAGE
+  // =========================
+  async assignStockLocations(stockId: number, businessId: number, data: any) {
+    const conn = await pool.getConnection();
+
+    try {
+      await conn.beginTransaction();
+
+      const locationPayload: any[] = [];
+      const seen = new Set();
+
+      for (const v of data.variants || []) {
+        for (const t of v.stock_types || []) {
+          let locationQtySum = 0;
+
+          for (const loc of t.locations || []) {
+            // 1. Prevent duplicate locations
+            const key = `${v.stock_variant_id}-${t.stock_type_id}-${loc.location_id}`;
+            if (seen.has(key)) throw new Error("Duplicate location entry");
+            seen.add(key);
+
+            // 2. Validate location ownership
+            const isOwner = await this.repo.validateLocationOwner(
+              loc.location_id,
+              businessId,
+            );
+            if (!isOwner) {
+              throw new Error(
+                `Location ${loc.location_id} does not belong to business`,
+              );
+            }
+
+            locationQtySum += loc.qty || 0;
+
+            locationPayload.push({
+              stock_variant_id: v.stock_variant_id,
+              stock_type_id: t.stock_type_id,
+              location_id: loc.location_id,
+              qty: loc.qty || 0,
+              business_id: businessId,
+            });
+          }
+
+          // 3. Validate qty: location qty sum <= stock_type qty
+          if (locationQtySum > t.qty) {
+            throw new Error(
+              `Location qty sum (${locationQtySum}) exceeds stock type qty (${t.qty}) for variant ${v.stock_variant_id}`,
+            );
+          }
+        }
+      }
+
+      // 🔥 DELETE OLD
+      await this.repo.deleteStockLocations(conn, stockId);
+
+      // 🔥 INSERT NEW
+      if (locationPayload.length) {
+        await this.repo.saveStockLocations(locationPayload, conn);
+      }
+
+      await conn.commit();
+
+      return { success: true };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  }
+
+  // =========================
+  // GET STOCK LIST
+  // =========================
+  async getStocks(userId: number, businessId: number) {
+    const user = await authRepo.getUserById(userId);
+
+    if (!user?.central_token) {
+      throw new Error("Central token missing");
+    }
+
+    const supplierRes = await axios.get(
+      "https://user.jobes24x7.com/api/suppliers",
+      {
+        headers: {
+          Authorization: `Bearer ${user.central_token}`,
+        },
+      },
+    );
+
+    const supplierList = supplierRes.data?.data?.data || [];
+    const supplierMap = new Map(
+      supplierList.map((s: any) => [s.id, s.business_name]),
+    );
+
     const stocks = await this.repo.getStocks(businessId);
-    const locations = await this.repo.getAllLocations(businessId);
 
     const stockIds = stocks.map((s: any) => s.stock_id);
 
@@ -63,7 +160,7 @@ export class StockService {
       variantMap[v.stock_id].push(v);
     });
 
-    // group stock types by variant_id
+    // group stock types
     types.forEach((t: any) => {
       if (!typeMap[t.variant_id]) typeMap[t.variant_id] = [];
       typeMap[t.variant_id].push(t);
@@ -95,15 +192,7 @@ export class StockService {
       supplier: row.supplier_id
         ? {
             id: row.supplier_id,
-            name: row.supplier_name,
-          }
-        : null,
-
-      location: row.location_id
-        ? {
-            id: row.location_id,
-            name: row.location_name,
-            full_path: buildLocationPath(locations, row.location_id),
+            name: supplierMap.get(row.supplier_id) || null,
           }
         : null,
 
@@ -111,7 +200,10 @@ export class StockService {
     }));
   }
 
-  async getStockById(stockId: number, businessId: number) {
+  // =========================
+  // GET SINGLE STOCK
+  // =========================
+  async getStockById(stockId: number, userId: number, businessId: number) {
     const stock = await this.repo.getStock(stockId, businessId);
 
     const variants = await this.repo.getVariants(stockId);
@@ -125,7 +217,6 @@ export class StockService {
       typeMap[t.variant_id].push(t);
     });
 
-    // attach stock types
     variants.forEach((v: any) => {
       const existing = typeMap[v.id] || [];
 
@@ -140,27 +231,22 @@ export class StockService {
       });
     });
 
-    // ✅ ADD THIS PART (IMPORTANT)
-    let location_path: any[] = [];
-
-    if (stock?.storage_location_id) {
-      location_path = await this.repo.getLocationPath(
-        stock.storage_location_id,
-        businessId,
-      );
-    }
-
     return {
       ...stock,
       variants,
-      location_path,
     };
   }
 
+  // =========================
+  // DELETE
+  // =========================
   async deleteStock(stockId: number, businessId: number) {
     await this.repo.deleteStock(stockId, businessId);
   }
 
+  // =========================
+  // UPDATE STOCK (STEP 1)
+  // =========================
   async updateStock(stockId: number, businessId: number, data: any) {
     const conn = await pool.getConnection();
 
@@ -169,26 +255,9 @@ export class StockService {
 
       await this.repo.updateStock(conn, stockId, businessId, data);
 
-      // ✅ FIRST delete child
       await this.repo.deleteStockTypes(conn, stockId);
-
-      // ✅ THEN delete parent
       await this.repo.deleteVariants(conn, stockId);
 
-      for (const v of data.variants || []) {
-        const totalStockTypeQty = (v.stock_types || []).reduce(
-          (sum: number, t: any) => sum + (t.qty || 0),
-          0,
-        );
-
-        if (totalStockTypeQty !== v.qty) {
-          throw new Error(
-            `Stock mismatch for variant ${v.variant_id}. Total ${v.qty}, but split ${totalStockTypeQty}`,
-          );
-        }
-      }
-
-      // ✅ THEN insert again
       if (data.variants?.length) {
         await this.repo.saveVariants(conn, stockId, data.variants);
       }
@@ -203,17 +272,45 @@ export class StockService {
       conn.release();
     }
   }
-}
 
-function buildLocationPath(locations: any[], locationId: number) {
-  let path: string[] = [];
-
-  let current = locations.find((l) => l.id === locationId);
-
-  while (current) {
-    path.unshift(current.name);
-    current = locations.find((l) => l.id === current.parent_id);
+  async getAssignedLocations(stockId: number, businessId: number) {
+    return await this.repo.getStockLocations(stockId, businessId);
   }
 
-  return path.join(" → ");
+  async deleteAssignedLocations(stockId: number, businessId: number) {
+    const conn = await pool.getConnection();
+
+    try {
+      await conn.beginTransaction();
+
+      await this.repo.deleteStockLocations(conn, stockId);
+
+      await conn.commit();
+
+      return { success: true };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async updateSingleLocation(data: any, businessId: number) {
+    // Validate ownership before single update
+    const isOwner = await this.repo.validateLocationOwner(
+      data.location_id,
+      businessId,
+    );
+    if (!isOwner) throw new Error("Location does not belong to business");
+
+    return await this.repo.updateSingleLocation({
+      ...data,
+      business_id: businessId,
+    });
+  }
+
+  async deleteSingleLocation(data: any, businessId: number) {
+    return await this.repo.deleteSingleLocation(data, businessId);
+  }
 }

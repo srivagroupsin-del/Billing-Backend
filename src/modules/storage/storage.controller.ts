@@ -192,8 +192,6 @@ export class StorageController {
 
   updateStructureOrder = async (req: AuthRequest, res: Response) => {
     try {
-      console.log("🔥 REORDER HIT:", req.body);
-
       await this.service.updateStructureOrder(req.body.structure);
 
       res.json({ success: true });
@@ -207,7 +205,7 @@ export class StorageController {
       });
     }
   };
-  
+
   // Storage Locations
   createLocation = async (req: AuthRequest, res: Response) => {
     try {

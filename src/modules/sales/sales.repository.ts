@@ -53,7 +53,11 @@ export class SalesRepository {
 
   async createBill(connection: any, businessId: number, data: any) {
     const {
-      customer_id,
+      external_customer_id,
+      customer_type,
+      customer_name,
+      customer_phone,
+      customer_meta,
       bill_number,
       total_amount,
       discount,
@@ -64,11 +68,15 @@ export class SalesRepository {
 
     const [result]: any = await connection.execute(
       `INSERT INTO sales_bills
-      (business_id,customer_id,bill_number,total_amount,discount,tax,final_amount,payment_method)
-      VALUES (?,?,?,?,?,?,?,?)`,
+    (business_id, external_customer_id, customer_type, customer_name, customer_phone,customer_meta, bill_number, total_amount, discount, tax, final_amount, payment_method)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         businessId,
-        customer_id,
+        external_customer_id,
+        customer_type,
+        customer_name,
+        customer_phone,
+        customer_meta,
         bill_number,
         total_amount,
         discount,
@@ -206,16 +214,11 @@ export class SalesRepository {
     businessId: number,
     billId: number,
   ) {
-    // 🔹 1. Bill + Customer
+    // 🔹 1. Get Bill (NO JOIN)
     const [billRows]: any = await connection.execute(
-      `SELECT 
-        sb.*,
-        c.name as customer_name,
-        c.email as customer_email
-     FROM srivagroupsin_business_db1.sales_bills sb
-     LEFT JOIN srivagroupsin_business_db1.cl_users c 
-       ON c.user_id = sb.customer_id
-     WHERE sb.id = ? AND sb.business_id = ?`,
+      `SELECT * 
+     FROM sales_bills
+     WHERE id = ? AND business_id = ?`,
       [billId, businessId],
     );
 
@@ -223,53 +226,56 @@ export class SalesRepository {
 
     const bill = billRows[0];
 
-    // 🔹 2. Items (CROSS DB JOIN 🔥)
+    // 🔹 2. Items (KEEP THIS ✅)
     const [items]: any = await connection.execute(
       `SELECT 
-        sbi.*,
+      sbi.*,
 
-        -- ✅ PRODUCT FROM DIFFERENT DB
-        p.product_name,
+      p.product_name,
+      v.name as variant_name,
+      st.name as stock_type_name
 
-        -- ✅ SAME DB TABLES
-        v.name as variant_name,
-        st.name as stock_type_name
-
-     FROM srivagroupsin_business_db1.sales_bill_items sbi
+     FROM sales_bill_items sbi
 
      LEFT JOIN srivagroupsin_product_db_2.products p 
        ON p.id = sbi.product_id
 
-     LEFT JOIN srivagroupsin_business_db1.variants v 
+     LEFT JOIN variants v 
        ON v.id = sbi.variant_id
 
-     LEFT JOIN srivagroupsin_business_db1.stock_types st 
+     LEFT JOIN stock_types st 
        ON st.id = sbi.stock_type_id
 
      WHERE sbi.bill_id = ?`,
       [billId],
     );
 
-    // 🔹 3. Movements + Location Name
+    // 🔹 3. Movements (KEEP ✅)
     const [movements]: any = await connection.execute(
       `SELECT 
-        sm.*,
-        sl.name as location_name
-     FROM srivagroupsin_business_db1.stock_movements sm
-     LEFT JOIN srivagroupsin_business_db1.storage_locations sl
+      sm.*,
+      sl.name as location_name
+     FROM stock_movements sm
+     LEFT JOIN storage_locations sl
        ON sl.id = sm.storage_location_id
      WHERE sm.reference_type = 'SALE_BILL'
-     AND sm.reference_id = ?`,
+     AND sm.reference_id = ?
+     AND (sl.id IS NULL OR sl.is_deleted = 0)
+`,
       [billId],
     );
 
     return {
       bill,
+
+      // 🔥 FIXED CUSTOMER OBJECT
       customer: {
-        id: bill.customer_id,
+        id: bill.external_customer_id,
+        type: bill.customer_type,
         name: bill.customer_name,
-        email: bill.customer_email,
+        phone: bill.customer_phone,
       },
+
       items,
       movements,
     };
