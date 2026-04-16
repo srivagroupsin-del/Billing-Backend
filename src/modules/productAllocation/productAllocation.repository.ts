@@ -54,6 +54,8 @@ export class ProductAllocationRepository {
     p.product_name,
     p.mrp,
 
+   bpa.id AS allocation_id,
+
     bpa.min_sale_qty,
     bpa.max_sale_qty,
 
@@ -145,7 +147,7 @@ AND bpa.is_active = 1
     const [result]: any = await pool.execute(
       `UPDATE business_product_allocations
         SET is_active = 0
-        WHERE product_id = ? AND business_id = ?`,
+        WHERE id = ? AND business_id = ?`,
       [id, businessId],
     );
 

@@ -4,13 +4,6 @@ export class StockRepository {
   async createOrUpdateStock(conn: any, businessId: number, data: any) {
     const { product_id, supplier_id, is_self_produced } = data;
 
-    console.log("🔥 STOCK INPUT:", {
-      businessId,
-      product_id,
-      supplier_id,
-    });
-    console.log("🔥 STOCK INPUT:", data);
-
     const [rows]: any = await conn.execute(
       `SELECT id FROM product_stock
    WHERE business_id=? 
@@ -50,10 +43,18 @@ export class StockRepository {
     const variantMap: any = {};
 
     for (const v of variants) {
-      const [result]: any = await conn.execute(
-        `INSERT INTO product_stock_variants
-       (stock_id, variant_id, buying_price, profit_margin, selling_price, qty)
-       VALUES (?,?,?,?,?,?)`,
+      await conn.execute(
+        `
+      INSERT INTO product_stock_variants
+      (stock_id, variant_id, buying_price, profit_margin, selling_price, qty)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        buying_price = VALUES(buying_price),
+        profit_margin = VALUES(profit_margin),
+        selling_price = VALUES(selling_price),
+        qty = VALUES(qty),
+        is_deleted = 0
+    `,
         [
           stockId,
           v.variant_id,
@@ -64,24 +65,31 @@ export class StockRepository {
         ],
       );
 
-      const variantRowId = result.insertId;
+      // 🔥 GET ID
+      const [row]: any = await conn.execute(
+        `SELECT id FROM product_stock_variants 
+       WHERE stock_id=? AND variant_id=?`,
+        [stockId, v.variant_id],
+      );
 
+      const variantRowId = row[0].id;
       variantMap[v.variant_id] = variantRowId;
 
+      // 🔥 UPSERT STOCK TYPES ALSO
       if (v.stock_types?.length) {
-        const values = v.stock_types.map((t: any) => [
-          stockId,
-          variantRowId,
-          t.stock_type_id,
-          t.qty,
-        ]);
-
-        await conn.query(
-          `INSERT INTO product_stock_types
-         (stock_id, variant_id, stock_type_id, qty)
-         VALUES ?`,
-          [values],
-        );
+        for (const t of v.stock_types) {
+          await conn.execute(
+            `
+          INSERT INTO product_stock_types
+          (stock_id, variant_id, stock_type_id, qty)
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            qty = VALUES(qty),
+            is_deleted = 0
+        `,
+            [stockId, variantRowId, t.stock_type_id, t.qty || 0],
+          );
+        }
       }
     }
 

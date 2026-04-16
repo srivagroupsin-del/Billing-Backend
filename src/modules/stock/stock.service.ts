@@ -6,9 +6,6 @@ import * as authRepo from "../../modules/auth/auth.repository";
 export class StockService {
   private repo = new StockRepository();
 
-  // =========================
-  // ✅ STEP 1: SAVE STOCK ONLY
-  // =========================
   async saveStock(businessId: number, data: any) {
     const conn = await pool.getConnection();
 
@@ -47,9 +44,6 @@ export class StockService {
     }
   }
 
-  // =========================
-  // ✅ STEP 2: ASSIGN STORAGE
-  // =========================
   async assignStockLocations(stockId: number, businessId: number, data: any) {
     const conn = await pool.getConnection();
 
@@ -119,9 +113,6 @@ export class StockService {
     }
   }
 
-  // =========================
-  // GET STOCK LIST
-  // =========================
   async getStocks(userId: number, businessId: number) {
     const user = await authRepo.getUserById(userId);
 
@@ -200,9 +191,6 @@ export class StockService {
     }));
   }
 
-  // =========================
-  // GET SINGLE STOCK
-  // =========================
   async getStockById(stockId: number, userId: number, businessId: number) {
     const stock = await this.repo.getStock(stockId, businessId);
 
@@ -237,16 +225,10 @@ export class StockService {
     };
   }
 
-  // =========================
-  // DELETE
-  // =========================
   async deleteStock(stockId: number, businessId: number) {
     await this.repo.deleteStock(stockId, businessId);
   }
 
-  // =========================
-  // UPDATE STOCK (STEP 1)
-  // =========================
   async updateStock(stockId: number, businessId: number, data: any) {
     const conn = await pool.getConnection();
 
@@ -254,9 +236,6 @@ export class StockService {
       await conn.beginTransaction();
 
       await this.repo.updateStock(conn, stockId, businessId, data);
-
-      await this.repo.deleteStockTypes(conn, stockId);
-      await this.repo.deleteVariants(conn, stockId);
 
       if (data.variants?.length) {
         await this.repo.saveVariants(conn, stockId, data.variants);

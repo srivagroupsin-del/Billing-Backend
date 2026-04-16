@@ -53,6 +53,7 @@ export class ProductAllocationService {
       // ✅ PRODUCT (deduplicate)
       if (!brand.Products[row.product_id]) {
         brand.Products[row.product_id] = {
+          allocation_id: row.allocation_id, // 🔥 ADD THIS LINE
           id: row.product_id,
           name: row.product_name,
           mrp: row.mrp,

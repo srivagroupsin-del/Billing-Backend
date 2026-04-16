@@ -15,6 +15,7 @@ import stocks from "./modules/stock/stock.routes";
 import suppliers from "./modules/suppliers/supplier.routes";
 import customer from "./modules/customer/customer.routes";
 import sales from "./modules/sales/sales.routes";
+import products from "./modules/products/product.routes";
 
 const app: Application = express();
 
@@ -60,7 +61,7 @@ app.use("/api/stockTypes", authMiddleware, stockTypes);
 app.use("/api/stocks", authMiddleware, stocks);
 app.use("/api/suppliers", authMiddleware, suppliers);
 app.use("/api/customer", authMiddleware, customer);
-app.use("/api/sales", authMiddleware, sales);
+app.use("/api/products", authMiddleware, products);
 
 // Static uploads
 app.use("/uploads", express.static("uploads"));
