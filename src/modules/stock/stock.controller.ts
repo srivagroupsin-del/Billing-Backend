@@ -79,7 +79,6 @@ export class StockController {
 
     const data = await this.service.getStockById(
       Number(req.params.id),
-      userId,
       businessId!,
     );
 

@@ -16,6 +16,11 @@ import suppliers from "./modules/suppliers/supplier.routes";
 import customer from "./modules/customer/customer.routes";
 import sales from "./modules/sales/sales.routes";
 import products from "./modules/products/product.routes";
+import supplierProduct from "./modules/supplierProduct/supplierProduct.routes";
+import quotation from "./modules/quotation/quotation.routes";
+import supplierRequest from "./modules/supplierRequest/supplierRequest.routes";
+import { verifyApiKey } from "./middlewares/api_key.verfication";
+import apiKeyRoutes from "./modules/api_key/apiKey.routes";
 
 const app: Application = express();
 
@@ -41,6 +46,13 @@ app.get("/", (req: Request, res: Response) => {
 });
 
 app.use("/api/auth", authRoutes);
+
+// 🔐 Admin
+app.use("/api/admin/api-key", apiKeyRoutes);
+
+// 🔑 Apply API key globally
+// app.use("/api", verifyApiKey);
+
 app.use("/api/users", authMiddleware, userRoutes);
 app.use("/api/businesses", authMiddleware, businessRoutes);
 app.use("/api/setup", businessSetupRoutes);
@@ -61,7 +73,11 @@ app.use("/api/stockTypes", authMiddleware, stockTypes);
 app.use("/api/stocks", authMiddleware, stocks);
 app.use("/api/suppliers", authMiddleware, suppliers);
 app.use("/api/customer", authMiddleware, customer);
+app.use("/api/sales", authMiddleware, sales);
 app.use("/api/products", authMiddleware, products);
+app.use("/api/supplierProduct", authMiddleware, supplierProduct);
+app.use("/api/quotation", authMiddleware, quotation);
+app.use("/api/supplierRequest", authMiddleware, supplierRequest);
 
 // Static uploads
 app.use("/uploads", express.static("uploads"));

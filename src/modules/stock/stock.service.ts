@@ -191,7 +191,7 @@ export class StockService {
     }));
   }
 
-  async getStockById(stockId: number, userId: number, businessId: number) {
+  async getStockById(stockId: number, businessId: number) {
     const stock = await this.repo.getStock(stockId, businessId);
 
     const variants = await this.repo.getVariants(stockId);

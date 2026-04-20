@@ -1,14 +1,7 @@
 import axios from "axios";
-import { SupplierRepository } from "./supplier.repository";
 import * as authRepo from "../../modules/auth/auth.repository";
 
 export class SupplierService {
-  private repository = new SupplierRepository();
-
-  async createSupplier(businessId: number, data: any) {
-    return this.repository.createSupplier(businessId, data);
-  }
-
   async getSuppliers(userId: number) {
     const user = await authRepo.getUserById(userId);
 
@@ -54,13 +47,5 @@ export class SupplierService {
       console.log("❌ SUPPLIER API ERROR:", err.response?.data || err.message);
       throw new Error("Failed to fetch suppliers");
     }
-  }
-
-  async updateSupplier(id: number, businessId: number, data: any) {
-    return this.repository.updateSupplier(id, businessId, data);
-  }
-
-  async deleteSupplier(id: number, businessId: number) {
-    return this.repository.deleteSupplier(id, businessId);
   }
 }
