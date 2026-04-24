@@ -22,7 +22,21 @@ export class SupplierRequestRepository {
       ],
     );
 
-    return res.insertId;
+    const id = res.insertId;
+
+    // 🔹 Step 2: Generate request code
+    const year = new Date().getFullYear();
+    const paddedId = String(id).padStart(4, "0");
+
+    const requestCode = `REQ-${year}-${paddedId}`;
+
+    // 🔹 Step 3: Update code
+    await conn.query(
+      `UPDATE supplier_requests SET request_code = ? WHERE id = ?`,
+      [requestCode, id],
+    );
+
+    return id;
   }
 
   async insertItems(conn: PoolConnection, requestId: number, items: any[]) {
@@ -46,23 +60,113 @@ export class SupplierRequestRepository {
   }
 
   async getAll(businessId: number) {
-    const [rows] = await pool.query(
-      `SELECT * FROM supplier_requests 
-       WHERE business_id=? AND is_deleted=0
-       ORDER BY id DESC`,
+    // 🔥 increase limit for this connection
+    await pool.query(`SET SESSION group_concat_max_len = 10000`);
+
+    const [rows]: any = await pool.query(
+      `
+    SELECT 
+      sr.id,
+      sr.request_code,
+      sr.supplier_id,
+      sr.status,
+      sr.delivery_datetime,
+
+      -- supplier name
+      b.name as supplier_name,
+
+      -- totals
+      COALESCE(SUM(sri.quantity), 0) as total_qty,
+      COALESCE(SUM(sri.quantity * sri.expected_price), 0) as total_amount,
+
+      -- 🔥 product + variant details
+      GROUP_CONCAT(
+        DISTINCT CONCAT(
+          p.product_name, ' (', p.model, ') - ', vm.name
+        )
+        SEPARATOR ', '
+      ) as product_details
+
+    FROM supplier_requests sr
+
+    LEFT JOIN supplier_request_items sri 
+      ON sri.request_id = sr.id AND sri.is_deleted = 0
+
+    LEFT JOIN srivagroupsin_product_db_2.product p 
+      ON p.id = sri.product_id
+
+    -- 🔥 JOIN VARIANT MASTER
+    LEFT JOIN product_variant_master vm
+      ON vm.id = sri.variant_id
+
+    LEFT JOIN businesses b 
+      ON b.id = sr.supplier_id
+
+    WHERE sr.business_id = ? 
+      AND sr.is_deleted = 0
+
+    GROUP BY sr.id
+
+    ORDER BY sr.id DESC
+    `,
       [businessId],
     );
+
     return rows;
   }
 
   async getReceivedRequests(supplierId: number) {
-    const [rows] = await pool.query(
-      `SELECT sr.*,
-      (SELECT COUNT(*) FROM supplier_request_items sri
-       WHERE sri.request_id = sr.id AND sri.is_deleted = 0) as item_count
-     FROM supplier_requests sr
-     WHERE sr.supplier_id = ? AND sr.is_deleted = 0
-     ORDER BY sr.id DESC`,
+    // 🔥 avoid GROUP_CONCAT limit
+    await pool.query(`SET SESSION group_concat_max_len = 10000`);
+
+    const [rows]: any = await pool.query(
+      `
+    SELECT 
+      sr.id,
+      sr.request_code,
+      sr.business_id,
+      sr.status,
+      sr.delivery_datetime,
+
+      -- 🔥 who sent this request
+      b.name as business_name,
+
+      -- totals
+      COALESCE(SUM(sri.quantity), 0) as total_qty,
+      COALESCE(SUM(sri.quantity * sri.expected_price), 0) as total_amount,
+
+      COUNT(sri.id) as item_count,
+
+      -- product + variant details
+      GROUP_CONCAT(
+        DISTINCT CONCAT(
+          p.product_name, ' (', p.model, ') - ', vm.name
+        )
+        SEPARATOR ', '
+      ) as product_details
+
+    FROM supplier_requests sr
+
+    LEFT JOIN supplier_request_items sri 
+      ON sri.request_id = sr.id AND sri.is_deleted = 0
+
+    LEFT JOIN srivagroupsin_product_db_2.product p 
+      ON p.id = sri.product_id
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = sri.variant_id
+
+    -- 🔥 business who created request
+    LEFT JOIN businesses b 
+      ON b.id = sr.business_id
+
+    WHERE sr.supplier_id = ? 
+      AND sr.is_deleted = 0
+
+    GROUP BY sr.id
+
+    ORDER BY sr.id DESC
+    `,
       [supplierId],
     );
 

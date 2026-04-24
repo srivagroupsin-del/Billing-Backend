@@ -2,60 +2,106 @@ import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { SupplierProductService } from "./supplierProduct.service";
 
+type SafeUser = {
+  id: number;
+  business_id: number;
+};
+
 export class SupplierProductController {
   private service = new SupplierProductService();
 
+  private getUser(req: AuthRequest): SafeUser {
+    if (!req.user || req.user.business_id === undefined) {
+      throw new Error("Unauthorized");
+    }
+
+    return {
+      id: req.user.id,
+      business_id: req.user.business_id,
+    };
+  }
+
+  private handleError(res: Response, err: any) {
+    const status = err.message === "Unauthorized" ? 401 : 400;
+
+    return res.status(status).json({
+      success: false,
+      message: err.message || "Something went wrong",
+    });
+  }
+
+  // 🔹 CREATE
   createBulk = async (req: AuthRequest, res: Response) => {
     try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Unauthorized" });
-      }
+      const user = this.getUser(req);
 
-      const result = await this.service.createBulk(req.body.data, userId);
+      const data = await this.service.createBulk(
+        req.body.data,
+        user.id,
+        user.business_id,
+      );
 
       res.json({
         success: true,
         message: "Created successfully",
-        data: result,
+        data,
       });
     } catch (err: any) {
-      res.status(400).json({ success: false, message: err.message });
+      this.handleError(res, err);
     }
   };
 
-  getAll = async (req: AuthRequest, res: Response) => {
+  // 🔹 LIST
+  getAll = async (_req: AuthRequest, res: Response) => {
     try {
       const data = await this.service.getAll();
       res.json({ success: true, data });
     } catch (err: any) {
-      res.status(500).json({ success: false, message: err.message });
+      this.handleError(res, err);
     }
   };
 
+  // 🔹 UPDATE
   update = async (req: AuthRequest, res: Response) => {
     try {
+      const user = this.getUser(req);
+
       const id = Number(req.params.id);
-      const userId = req.user?.id;
+      if (!id) throw new Error("Invalid ID");
 
-      const data = await this.service.update(id, req.body, userId!);
+      const data = await this.service.update(
+        id,
+        req.body,
+        user.id,
+        user.business_id,
+      );
 
-      res.json({ success: true, message: "Updated", data });
+      res.json({
+        success: true,
+        message: "Updated",
+        data,
+      });
     } catch (err: any) {
-      res.status(400).json({ success: false, message: err.message });
+      this.handleError(res, err);
     }
   };
 
+  // 🔹 DELETE
   softDelete = async (req: AuthRequest, res: Response) => {
     try {
-      const id = Number(req.params.id);
-      await this.service.softDelete(id);
+      const user = this.getUser(req);
 
-      res.json({ success: true, message: "Deleted" });
+      const id = Number(req.params.id);
+      if (!id) throw new Error("Invalid ID");
+
+      await this.service.softDelete(id, user.business_id);
+
+      res.json({
+        success: true,
+        message: "Deleted",
+      });
     } catch (err: any) {
-      res.status(400).json({ success: false, message: err.message });
+      this.handleError(res, err);
     }
   };
 }

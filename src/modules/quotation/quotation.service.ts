@@ -5,12 +5,17 @@ export class QuotationService {
   private repo = new QuotationRepository();
 
   validate(data: any) {
-    if (!data.supplier_id || !data.request_date || !data.validity_date) {
+    if (!data.request_date || !data.validity_date) {
       throw new Error("Missing required fields");
     }
 
     if (!Array.isArray(data.items) || data.items.length === 0) {
       throw new Error("Items required");
+    }
+
+    const ids = data.items.map((i: any) => i.supplier_product_mapping_id);
+    if (new Set(ids).size !== ids.length) {
+      throw new Error("Duplicate products in quotation");
     }
 
     data.items.forEach((item: any) => {
@@ -20,7 +25,7 @@ export class QuotationService {
     });
   }
 
-  async create(data: any, userId: number) {
+  async create(data: any, userId: number, businessId: number) {
     this.validate(data);
 
     const conn = await pool.getConnection();
@@ -28,13 +33,22 @@ export class QuotationService {
     try {
       await conn.beginTransaction();
 
-      const quotationId = await this.repo.createQuotation(conn, data, userId);
+      const quotationId = await this.repo.createQuotation(
+        conn,
+        { ...data, supplier_id: businessId },
+        userId,
+      );
+
+      const year = new Date().getFullYear();
+      const code = `QT-${year}-${quotationId.toString().padStart(5, "0")}`;
+
+      await this.repo.updateQuotationCode(conn, quotationId, code);
 
       await this.repo.insertItems(conn, quotationId, data.items);
 
       await conn.commit();
 
-      return { quotation_id: quotationId };
+      return { quotation_id: quotationId, quotation_code: code };
     } catch (err) {
       await conn.rollback();
       throw err;
@@ -43,28 +57,24 @@ export class QuotationService {
     }
   }
 
-  async getAll() {
-    return await this.repo.getAll();
+  async getAll(supplierId: number) {
+    return await this.repo.getAll(supplierId);
   }
 
-  async getById(id: number) {
-    return await this.repo.getById(id);
+  async getById(id: number, supplierId: number) {
+    return await this.repo.getById(id, supplierId);
   }
 
-  async update(id: number, data: any, userId: number) {
+  async update(id: number, data: any, userId: number, supplierId: number) {
     const conn = await pool.getConnection();
 
     try {
       await conn.beginTransaction();
 
-      // update main
-      await this.repo.updateQuotation(conn, id, data, userId);
-
-      // delete old items
+      await this.repo.updateQuotation(conn, id, data, userId, supplierId);
       await this.repo.softDeleteItems(conn, id);
 
-      // insert new items
-      if (data.items && data.items.length > 0) {
+      if (data.items?.length) {
         await this.repo.insertItems(conn, id, data.items);
       }
 
@@ -79,25 +89,26 @@ export class QuotationService {
     }
   }
 
-  async softDelete(id: number) {
-    return await this.repo.softDelete(id);
+  async softDelete(id: number, supplierId: number) {
+    return await this.repo.softDelete(id, supplierId);
   }
 
-  async updateStatus(id: number, status: string, userId: number) {
+  async updateStatus(
+    id: number,
+    status: string,
+    userId: number,
+    supplierId: number,
+  ) {
     const allowed = ["pending", "accepted", "rejected", "expired"];
 
     if (!allowed.includes(status)) {
       throw new Error("Invalid status");
     }
 
-    return await this.repo.updateStatus(id, status, userId);
+    return await this.repo.updateStatus(id, status, userId, supplierId);
   }
 
-  async deleteItem(itemId: number, quotationId: number) {
-    if (!itemId || !quotationId) {
-      throw new Error("Item ID & quotation ID required");
-    }
-
-    return await this.repo.softDeleteItem(itemId, quotationId);
+  async deleteItem(itemId: number, quotationId: number, supplierId: number) {
+    return await this.repo.softDeleteItem(itemId, quotationId, supplierId);
   }
 }

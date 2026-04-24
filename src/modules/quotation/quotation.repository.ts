@@ -2,7 +2,13 @@ import { PoolConnection } from "mysql2/promise";
 import pool from "../../config/db";
 
 export class QuotationRepository {
-  // 🔹 CREATE QUOTATION
+  async updateQuotationCode(conn: PoolConnection, id: number, code: string) {
+    await conn.query(`UPDATE quotations SET quotation_code=? WHERE id=?`, [
+      code,
+      id,
+    ]);
+  }
+
   async createQuotation(conn: PoolConnection, data: any, userId: number) {
     const [result]: any = await conn.query(
       `INSERT INTO quotations 
@@ -14,16 +20,8 @@ export class QuotationRepository {
     return result.insertId;
   }
 
-  // 🔹 INSERT ITEMS (SAFE)
   async insertItems(conn: PoolConnection, quotationId: number, items: any[]) {
     if (!items || items.length === 0) return;
-
-    // optional duplicate check
-    const ids = items.map((i) => i.supplier_product_mapping_id);
-    const unique = new Set(ids);
-    if (ids.length !== unique.size) {
-      throw new Error("Duplicate products in quotation");
-    }
 
     const values = items.map((item) => [
       quotationId,
@@ -46,94 +44,153 @@ export class QuotationRepository {
     );
   }
 
-  // 🔹 GET ALL
-  async getAll() {
-    const [rows] = await pool.query(
-      `SELECT q.*, 
-        (SELECT COUNT(*) FROM quotation_items qi 
-         WHERE qi.quotation_id = q.id AND qi.is_deleted = 0) as item_count
-       FROM quotations q
-       WHERE q.is_deleted = 0
-       ORDER BY q.id DESC`,
+  async getAll(supplierId: number) {
+    await pool.query("SET SESSION group_concat_max_len = 10000");
+    const [rows]: any = await pool.query(
+      `
+    SELECT 
+      q.id,
+      q.quotation_code,
+      q.request_date,
+      q.validity_date,
+      q.status,
+
+      -- totals
+      COALESCE(SUM(qi.quantity), 0) as total_qty,
+      COALESCE(SUM(qi.quantity * qi.target_price), 0) as total_amount,
+
+      -- product names
+      GROUP_CONCAT(
+        DISTINCT CONCAT(
+          p.product_name, ' (', p.model, ') - ', vm.name
+        )
+        SEPARATOR ', '
+      ) as products
+
+    FROM quotations q
+
+    LEFT JOIN quotation_items qi 
+      ON qi.quotation_id = q.id AND qi.is_deleted = 0
+
+    LEFT JOIN supplier_product_mapping spm
+      ON spm.id = qi.supplier_product_mapping_id
+
+    LEFT JOIN srivagroupsin_product_db_2.product p
+      ON p.id = spm.product_id
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = spm.variant_id
+
+    WHERE q.supplier_id = ? 
+      AND q.is_deleted = 0
+
+    GROUP BY q.id
+
+    ORDER BY q.id DESC
+    `,
+      [supplierId],
     );
 
     return rows;
   }
 
-  // 🔹 GET BY ID
-  async getById(id: number) {
-    const [quotation]: any = await pool.query(
-      `SELECT * FROM quotations WHERE id = ? AND is_deleted = 0`,
-      [id],
+  async getById(id: number, supplierId: number) {
+    const [q]: any = await pool.query(
+      `SELECT * FROM quotations 
+     WHERE id=? AND supplier_id=? AND is_deleted=0`,
+      [id, supplierId],
     );
 
-    if (!quotation.length) throw new Error("Not found");
+    if (!q.length) throw new Error("Not found");
 
-    const [items] = await pool.query(
-      `SELECT * FROM quotation_items 
-       WHERE quotation_id = ? AND is_deleted = 0
-       ORDER BY id ASC`,
+    const [items]: any = await pool.query(
+      `
+    SELECT 
+      qi.id,
+      qi.quantity,
+      qi.target_price,
+      qi.notes,
+      qi.additional_charges,
+      qi.tax,
+      qi.packing,
+      qi.delivery,
+      (qi.quantity * qi.target_price) as item_total,
+      p.product_name,
+      p.model,
+      vm.name as variant_name
+      
+    FROM quotation_items qi
+
+    LEFT JOIN supplier_product_mapping spm
+      ON spm.id = qi.supplier_product_mapping_id
+
+    LEFT JOIN srivagroupsin_product_db_2.product p
+      ON p.id = spm.product_id
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = spm.variant_id
+
+    WHERE qi.quotation_id=? 
+      AND qi.is_deleted=0
+
+    ORDER BY qi.id ASC
+    `,
       [id],
     );
 
     return {
-      ...quotation[0],
+      ...q[0],
       items,
     };
   }
 
-  // 🔹 UPDATE MASTER (SAFE PARTIAL)
   async updateQuotation(
     conn: PoolConnection,
     id: number,
     data: any,
     userId: number,
+    supplierId: number,
   ) {
     await conn.query(
       `UPDATE quotations SET
-        supplier_id = COALESCE(?, supplier_id),
         request_date = COALESCE(?, request_date),
         validity_date = COALESCE(?, validity_date),
         updated_by = ?
-       WHERE id = ? AND is_deleted = 0`,
+       WHERE id=? AND supplier_id=? AND is_deleted=0`,
       [
-        data.supplier_id ?? null,
         data.request_date ?? null,
         data.validity_date ?? null,
         userId,
         id,
+        supplierId,
       ],
     );
   }
 
-  // 🔹 SOFT DELETE ALL ITEMS (FOR UPDATE FLOW)
   async softDeleteItems(conn: PoolConnection, quotationId: number) {
     await conn.query(
-      `UPDATE quotation_items
-       SET is_deleted = 1, deleted_at = NOW()
-       WHERE quotation_id = ? AND is_deleted = 0`,
+      `UPDATE quotation_items 
+       SET is_deleted=1, deleted_at=NOW()
+       WHERE quotation_id=?`,
       [quotationId],
     );
   }
 
-  // 🔹 DELETE FULL QUOTATION
-  async softDelete(id: number) {
+  async softDelete(id: number, supplierId: number) {
     const conn = await pool.getConnection();
 
     try {
       await conn.beginTransaction();
 
       await conn.query(
-        `UPDATE quotations 
-         SET is_deleted = 1, deleted_at = NOW()
-         WHERE id = ?`,
-        [id],
+        `UPDATE quotations SET is_deleted=1, deleted_at=NOW()
+         WHERE id=? AND supplier_id=?`,
+        [id, supplierId],
       );
 
       await conn.query(
-        `UPDATE quotation_items
-         SET is_deleted = 1, deleted_at = NOW()
-         WHERE quotation_id = ?`,
+        `UPDATE quotation_items SET is_deleted=1, deleted_at=NOW()
+         WHERE quotation_id=?`,
         [id],
       );
 
@@ -146,27 +203,31 @@ export class QuotationRepository {
     }
   }
 
-  // 🔹 UPDATE STATUS (FIXED)
-  async updateStatus(id: number, status: string, userId: number) {
-    const [result]: any = await pool.query(
+  async updateStatus(
+    id: number,
+    status: string,
+    userId: number,
+    supplierId: number,
+  ) {
+    await pool.query(
       `UPDATE quotations 
-       SET status = ?, updated_at = NOW(), updated_by = ?
-       WHERE id = ? AND is_deleted = 0`,
-      [status, userId, id],
+       SET status=?, updated_by=?
+       WHERE id=? AND supplier_id=?`,
+      [status, userId, id, supplierId],
     );
-
-    return result;
   }
 
-  // 🔹 DELETE SINGLE ITEM (SAFE)
-  async softDeleteItem(itemId: number, quotationId: number) {
-    const [result]: any = await pool.query(
-      `UPDATE quotation_items
-       SET is_deleted = 1, deleted_at = NOW()
-       WHERE id = ? AND quotation_id = ? AND is_deleted = 0`,
-      [itemId, quotationId],
+  async softDeleteItem(
+    itemId: number,
+    quotationId: number,
+    supplierId: number,
+  ) {
+    await pool.query(
+      `UPDATE quotation_items qi
+       JOIN quotations q ON q.id = qi.quotation_id
+       SET qi.is_deleted=1, qi.deleted_at=NOW()
+       WHERE qi.id=? AND qi.quotation_id=? AND q.supplier_id=?`,
+      [itemId, quotationId, supplierId],
     );
-
-    return result;
   }
 }

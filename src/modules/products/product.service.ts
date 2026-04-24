@@ -10,8 +10,8 @@ import { ensureUniqueActive } from "../../utils/uniqueCheck";
 /* =========================================
    FETCH ALL PRODUCTS
 ========================================= */
-export const fetchProducts = async () => {
-  return repo.getProducts();
+export const fetchProducts = async (search: string = "") => {
+  return repo.getProducts(search);
 };
 
 /* =========================================

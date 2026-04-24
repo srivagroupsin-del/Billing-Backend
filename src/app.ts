@@ -21,6 +21,7 @@ import quotation from "./modules/quotation/quotation.routes";
 import supplierRequest from "./modules/supplierRequest/supplierRequest.routes";
 import { verifyApiKey } from "./middlewares/api_key.verfication";
 import apiKeyRoutes from "./modules/api_key/apiKey.routes";
+import variantsRoutes from "./modules/variants/variants.routes";
 
 const app: Application = express();
 
@@ -78,6 +79,7 @@ app.use("/api/products", authMiddleware, products);
 app.use("/api/supplierProduct", authMiddleware, supplierProduct);
 app.use("/api/quotation", authMiddleware, quotation);
 app.use("/api/supplierRequest", authMiddleware, supplierRequest);
+app.use("/api/variants", variantsRoutes);
 
 // Static uploads
 app.use("/uploads", express.static("uploads"));

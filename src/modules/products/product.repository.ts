@@ -1,7 +1,8 @@
 import pool from "../../config/productDb";
 
-export const getProducts = async () => {
-  const [rows] = await pool.query(`
+export const getProducts = async (search: string = "") => {
+  const [rows] = await pool.query(
+    `
     SELECT
       p.id,
       p.product_name,
@@ -32,7 +33,6 @@ export const getProducts = async () => {
         SEPARATOR ', '
       ) AS mappings,
 
-      -- ✅ ADD THIS
       GROUP_CONCAT(DISTINCT pan.alternative_name SEPARATOR ', ') AS alternative_names
 
     FROM product p
@@ -61,8 +61,26 @@ export const getProducts = async () => {
 
     WHERE p.is_active = 1
 
+    ${
+      search
+        ? `AND (
+          p.product_name LIKE ? OR
+          p.model LIKE ? OR
+          p.series LIKE ? OR
+          p.description LIKE ? OR
+          p.info LIKE ? OR
+          p.note LIKE ? OR
+          b.brand_name LIKE ? OR
+          c.category_name LIKE ? OR
+          pan.alternative_name LIKE ?
+        )`
+        : ""
+    }
+
     GROUP BY p.id
-  `);
+    `,
+    search ? Array(9).fill(`%${search}%`) : [],
+  );
 
   return rows;
 };

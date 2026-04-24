@@ -5,9 +5,12 @@ import { AuthRequest } from "../../middlewares/auth.middlewares";
 /* ===============================
    GET ROUTES
 ================================ */
-export const getProducts = async (_: Request, res: Response) => {
+export const getProducts = async (req: Request, res: Response) => {
   try {
-    const data = await service.fetchProducts();
+    const search = (req.query.search as string) || "";
+
+    const data = await service.fetchProducts(search);
+
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
