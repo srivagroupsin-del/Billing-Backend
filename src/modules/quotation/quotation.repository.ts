@@ -44,8 +44,9 @@ export class QuotationRepository {
     );
   }
 
-  async getAll(supplierId: number) {
+  async getBySupplierId(supplierId: number) {
     await pool.query("SET SESSION group_concat_max_len = 10000");
+
     const [rows]: any = await pool.query(
       `
     SELECT 
@@ -55,14 +56,13 @@ export class QuotationRepository {
       q.validity_date,
       q.status,
 
-      -- totals
       COALESCE(SUM(qi.quantity), 0) as total_qty,
       COALESCE(SUM(qi.quantity * qi.target_price), 0) as total_amount,
 
-      -- product names
       GROUP_CONCAT(
         DISTINCT CONCAT(
-          p.product_name, ' (', p.model, ') - ', vm.name
+          COALESCE(p.product_name,''), ' (', COALESCE(p.model,''), ') - ',
+          COALESCE(vm.name,'')
         )
         SEPARATOR ', '
       ) as products
@@ -81,14 +81,62 @@ export class QuotationRepository {
     LEFT JOIN product_variant_master vm
       ON vm.id = spm.variant_id
 
-    WHERE q.supplier_id = ? 
-      AND q.is_deleted = 0
+    WHERE q.supplier_id = ?   -- ✅ FILTER
+
+    AND q.is_deleted = 0
 
     GROUP BY q.id
-
     ORDER BY q.id DESC
     `,
       [supplierId],
+    );
+
+    return rows;
+  }
+
+  async getAll() {
+    await pool.query("SET SESSION group_concat_max_len = 10000");
+
+    const [rows]: any = await pool.query(
+      `
+    SELECT 
+      q.id,
+      q.supplier_id,
+      q.quotation_code,
+      q.request_date,
+      q.validity_date,
+      q.status,
+
+      COALESCE(SUM(qi.quantity), 0) as total_qty,
+      COALESCE(SUM(qi.quantity * qi.target_price), 0) as total_amount,
+
+      GROUP_CONCAT(
+        DISTINCT CONCAT(
+          COALESCE(p.product_name,''), ' (', COALESCE(p.model,''), ') - ',
+          COALESCE(vm.name,'')
+        )
+        SEPARATOR ', '
+      ) as products
+
+    FROM quotations q
+
+    LEFT JOIN quotation_items qi 
+      ON qi.quotation_id = q.id AND qi.is_deleted = 0
+
+    LEFT JOIN supplier_product_mapping spm
+      ON spm.id = qi.supplier_product_mapping_id
+
+    LEFT JOIN srivagroupsin_product_db_2.product p
+      ON p.id = spm.product_id
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = spm.variant_id
+
+    WHERE q.is_deleted = 0   -- ❌ NO supplier filter
+
+    GROUP BY q.id
+    ORDER BY q.id DESC
+    `,
     );
 
     return rows;

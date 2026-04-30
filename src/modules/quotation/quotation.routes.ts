@@ -4,10 +4,12 @@ import { QuotationController } from "./quotation.controller";
 const router = Router();
 const controller = new QuotationController();
 
+router.get("/my-Quotations", controller.getMy); // supplier
+
 // create
 router.post("/", controller.create);
 
-// list
+// All
 router.get("/", controller.getAll);
 
 // ✅ PUT THIS FIRST (more specific)

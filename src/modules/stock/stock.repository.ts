@@ -87,7 +87,7 @@ export class StockRepository {
             qty = VALUES(qty),
             is_deleted = 0
         `,
-            [stockId, variantRowId, t.stock_type_id, t.qty || 0],
+            [stockId, v.variant_id, t.stock_type_id, t.qty || 0],
           );
         }
       }
@@ -321,5 +321,27 @@ export class StockRepository {
     );
 
     return rows;
+  }
+
+  async increaseStock(conn: any, data: any) {
+    // 🔥 update variant stock
+    await conn.execute(
+      `
+    UPDATE product_stock_variants
+    SET qty = qty + ?
+    WHERE stock_id = ? AND variant_id = ?
+  `,
+      [data.qty, data.stock_id, data.variant_id],
+    );
+
+    // 🔥 update total stock
+    await conn.execute(
+      `
+    UPDATE product_stock
+    SET total_qty = total_qty + ?
+    WHERE id = ?
+  `,
+      [data.qty, data.stock_id],
+    );
   }
 }

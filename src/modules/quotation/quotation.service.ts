@@ -57,8 +57,14 @@ export class QuotationService {
     }
   }
 
-  async getAll(supplierId: number) {
-    return await this.repo.getAll(supplierId);
+  // 🔥 ALL
+  async getAll() {
+    return await this.repo.getAll();
+  }
+
+  // 🔥 MY
+  async getBySupplierId(supplierId: number) {
+    return await this.repo.getBySupplierId(supplierId);
   }
 
   async getById(id: number, supplierId: number) {

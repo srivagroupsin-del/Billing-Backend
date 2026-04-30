@@ -8,10 +8,10 @@ export const verifyApiKey = async (
 ) => {
   try {
     const apiKey = req.header("x-api-key");
-    const serviceName = req.header("x-service-name");
-    const platform = req.header("x-platform");
+    const serviceName = (req.header("x-service-name") || "").toUpperCase();
+    const platform = (req.header("x-platform") || "").toUpperCase();
 
-    // 🔴 Missing headers
+    // ✅ 1. check missing FIRST
     if (!apiKey || !serviceName || !platform) {
       return res.status(400).json({
         success: false,
@@ -19,10 +19,32 @@ export const verifyApiKey = async (
       });
     }
 
-    // 🔍 Validate API key
+    // ✅ 2. validate platform
+    const allowedPlatforms = ["WEB", "MOBILE", "DESKTOP"];
+
+    if (!allowedPlatforms.includes(platform)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid platform",
+      });
+    }
+
+    // 🔥 OPTIONAL (extra security)
+    if (
+      (platform === "WEB" && !apiKey.startsWith("W_")) ||
+      (platform === "MOBILE" && !apiKey.startsWith("M_")) ||
+      (platform === "DESKTOP" && !apiKey.startsWith("D_"))
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Token does not match platform",
+      });
+    }
+
+    // ✅ 4. DB validation
     const [rows]: any = await apiDb.query(
       `SELECT id FROM api_keys 
-       WHERE api_key=? 
+       WHERE access_token=? 
        AND service_name=? 
        AND platform_type=? 
        AND is_active=1
@@ -30,7 +52,6 @@ export const verifyApiKey = async (
       [apiKey, serviceName, platform],
     );
 
-    // 🔴 Invalid / expired key
     if (!rows || rows.length === 0) {
       return res.status(403).json({
         success: false,
@@ -40,19 +61,15 @@ export const verifyApiKey = async (
 
     const keyId = rows[0].id;
 
-    // 🔄 Update last usage (non-blocking best practice)
+    // 🔄 async update (non-blocking)
     apiDb
       .query("UPDATE api_keys SET last_used_at=NOW() WHERE id=?", [keyId])
-      .catch(() => {
-        // silently ignore logging errors
-      });
+      .catch(() => {});
 
     next();
   } catch (err) {
-    // ❗ Log only in backend
     console.error("API KEY MIDDLEWARE ERROR:", err);
 
-    // 🔒 Safe response (no internal details)
     return res.status(500).json({
       success: false,
       message: "Unable to validate API key",

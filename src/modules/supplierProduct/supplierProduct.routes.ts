@@ -7,6 +7,8 @@ const controller = new SupplierProductController();
 
 router.use(authMiddleware);
 
+router.get("/my-products", controller.getMyProducts);
+
 // create (bulk)
 router.post("/", controller.createBulk);
 

@@ -12,15 +12,16 @@ export const createOrUpdate = async (body: any) => {
 
   if (existing) {
     await repo.updateApiKey(service_name, platform_type, api_key, expires_at);
+
     await repo.insertLog(
       service_name,
       platform_type,
-      existing.api_key,
+      existing.access_token,
       api_key,
     );
 
     return {
-      message: "API Key updated",
+      message: "Token updated",
       api_key,
       expires_at,
     };
@@ -28,7 +29,7 @@ export const createOrUpdate = async (body: any) => {
     await repo.insertApiKey(service_name, platform_type, api_key, expires_at);
 
     return {
-      message: "API Key created",
+      message: "Token created",
       api_key,
       expires_at,
     };
@@ -48,4 +49,18 @@ export const getOne = async (service_name: string, platform_type: string) => {
 // 📜 LOGS
 export const getLogs = async () => {
   return await repo.getLogs();
+};
+
+// ✅ GET ACTIVE
+export const getActiveApiKey = async (
+  service_name: string,
+  platform_type: string,
+) => {
+  const keyData = await repo.getActiveKey(service_name, platform_type);
+
+  if (!keyData) {
+    throw new Error("No active token found");
+  }
+
+  return keyData;
 };

@@ -49,11 +49,12 @@ export class SupplierRequestRepository {
       i.quantity,
       i.expected_price || 0,
       i.notes || null,
+      i.stock_id, // ✅ ADD THIS
     ]);
 
     await conn.query(
       `INSERT INTO supplier_request_items
-       (request_id, product_id, variant_id, quantity, expected_price, notes)
+       (request_id, product_id, variant_id, quantity, expected_price, notes, stock_id)
        VALUES ?`,
       [values],
     );
@@ -65,50 +66,37 @@ export class SupplierRequestRepository {
 
     const [rows]: any = await pool.query(
       `
-    SELECT 
-      sr.id,
-      sr.request_code,
-      sr.supplier_id,
-      sr.status,
-      sr.delivery_datetime,
+      SELECT 
+        sr.id,
+        sr.request_code,
+        sr.supplier_id,
+        sr.status,
+        sr.delivery_datetime,
 
-      -- supplier name
-      b.name as supplier_name,
+        COALESCE(SUM(sri.quantity), 0) as total_qty,
+        COALESCE(SUM(sri.quantity * sri.expected_price), 0) as total_amount,
 
-      -- totals
-      COALESCE(SUM(sri.quantity), 0) as total_qty,
-      COALESCE(SUM(sri.quantity * sri.expected_price), 0) as total_amount,
+        GROUP_CONCAT(
+          DISTINCT CONCAT(
+            p.product_name, ' (', p.model, ') - ', vm.name
+          )
+          SEPARATOR ', '
+        ) as product_details
 
-      -- 🔥 product + variant details
-      GROUP_CONCAT(
-        DISTINCT CONCAT(
-          p.product_name, ' (', p.model, ') - ', vm.name
-        )
-        SEPARATOR ', '
-      ) as product_details
+      FROM supplier_requests sr
+      LEFT JOIN supplier_request_items sri 
+        ON sri.request_id = sr.id AND sri.is_deleted = 0
+      LEFT JOIN srivagroupsin_product_db_2.product p 
+        ON p.id = sri.product_id
+      LEFT JOIN product_variant_master vm
+        ON vm.id = sri.variant_id
 
-    FROM supplier_requests sr
-
-    LEFT JOIN supplier_request_items sri 
-      ON sri.request_id = sr.id AND sri.is_deleted = 0
-
-    LEFT JOIN srivagroupsin_product_db_2.product p 
-      ON p.id = sri.product_id
-
-    -- 🔥 JOIN VARIANT MASTER
-    LEFT JOIN product_variant_master vm
-      ON vm.id = sri.variant_id
-
-    LEFT JOIN businesses b 
-      ON b.id = sr.supplier_id
-
-    WHERE sr.business_id = ? 
+      WHERE sr.business_id = ?
       AND sr.is_deleted = 0
 
-    GROUP BY sr.id
-
-    ORDER BY sr.id DESC
-    `,
+      GROUP BY sr.id
+      ORDER BY sr.id DESC
+      `,
       [businessId],
     );
 
@@ -128,16 +116,11 @@ export class SupplierRequestRepository {
       sr.status,
       sr.delivery_datetime,
 
-      -- 🔥 who sent this request
-      b.name as business_name,
+      COUNT(sri.id) as item_count,
 
-      -- totals
       COALESCE(SUM(sri.quantity), 0) as total_qty,
       COALESCE(SUM(sri.quantity * sri.expected_price), 0) as total_amount,
 
-      COUNT(sri.id) as item_count,
-
-      -- product + variant details
       GROUP_CONCAT(
         DISTINCT CONCAT(
           p.product_name, ' (', p.model, ') - ', vm.name
@@ -146,25 +129,17 @@ export class SupplierRequestRepository {
       ) as product_details
 
     FROM supplier_requests sr
-
     LEFT JOIN supplier_request_items sri 
       ON sri.request_id = sr.id AND sri.is_deleted = 0
-
     LEFT JOIN srivagroupsin_product_db_2.product p 
       ON p.id = sri.product_id
-
     LEFT JOIN product_variant_master vm
       ON vm.id = sri.variant_id
 
-    -- 🔥 business who created request
-    LEFT JOIN businesses b 
-      ON b.id = sr.business_id
-
-    WHERE sr.supplier_id = ? 
-      AND sr.is_deleted = 0
+    WHERE sr.supplier_id = ?
+    AND sr.is_deleted = 0
 
     GROUP BY sr.id
-
     ORDER BY sr.id DESC
     `,
       [supplierId],
@@ -181,9 +156,32 @@ export class SupplierRequestRepository {
 
     if (!req.length) throw new Error("Not found");
 
-    const [items] = await pool.query(
-      `SELECT * FROM supplier_request_items 
-       WHERE request_id=? AND is_deleted=0`,
+    const [items]: any = await pool.query(
+      `
+        SELECT 
+          sri.id,
+          sri.product_id,
+          sri.variant_id,
+          sri.stock_id,      -- ✅ ADD THIS
+          sri.quantity,
+          sri.expected_price,
+          sri.notes,
+
+          p.product_name,
+          p.model,
+          vm.name as variant_name
+
+        FROM supplier_request_items sri
+
+        LEFT JOIN srivagroupsin_product_db_2.product p
+          ON p.id = sri.product_id
+
+        LEFT JOIN product_variant_master vm
+          ON vm.id = sri.variant_id
+
+        WHERE sri.request_id = ?
+        AND sri.is_deleted = 0
+        `,
       [id],
     );
 
@@ -218,16 +216,17 @@ export class SupplierRequestRepository {
   }
 
   async updateStatus(
+    conn: PoolConnection,
     id: number,
     status: string,
-    reason: string | null, // ✅ allow null
+    reason: string | null,
     userId: number,
   ) {
-    await pool.query(
+    await conn.query(
       `UPDATE supplier_requests 
-       SET status=?, partial_reason=?, updated_by=?
-       WHERE id=?`,
-      [status, reason || null, userId, id],
+     SET status = ?, partial_reason = ?, updated_by = ?
+     WHERE id = ?`,
+      [status, reason, userId, id],
     );
   }
 

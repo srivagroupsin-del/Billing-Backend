@@ -42,13 +42,15 @@ export class SupplierProductRepository {
     const [rows]: any = await pool.query(`
       SELECT 
         spm.id,
+        spm.supplier_id,
+        spm.product_id,
+        spm.variant_id,
         spm.cost_price,
         spm.stock_status,
         spm.pay_advance,
         spm.lead_days,
         spm.lead_days_type,
 
-        b.name as supplier_name,
         p.product_name,
         p.model,
         vm.name as variant_name
@@ -72,6 +74,42 @@ export class SupplierProductRepository {
     return rows;
   }
 
+  async getBySupplierId(supplierId: number) {
+    const [rows]: any = await pool.query(
+      `
+    SELECT 
+      spm.id,
+      spm.supplier_id,
+      spm.product_id,
+      spm.variant_id,
+      spm.cost_price,
+      spm.stock_status,
+      spm.pay_advance,
+      spm.lead_days,
+      spm.lead_days_type,
+
+      p.product_name,
+      p.model,
+      vm.name as variant_name
+
+    FROM supplier_product_mapping spm
+
+    LEFT JOIN srivagroupsin_product_db_2.product p
+      ON p.id = spm.product_id
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = spm.variant_id
+
+    WHERE spm.supplier_id = ?   -- ✅ FILTER
+    AND spm.is_deleted = 0
+
+    ORDER BY spm.id DESC
+    `,
+      [supplierId],
+    );
+
+    return rows;
+  }
   // 🔹 GET BY ID
   async getById(id: number) {
     const [rows]: any = await pool.query(

@@ -51,11 +51,37 @@ export class SupplierProductController {
     }
   };
 
-  // 🔹 LIST
-  getAll = async (_req: AuthRequest, res: Response) => {
+  getAll = async (req: AuthRequest, res: Response) => {
     try {
-      const data = await this.service.getAll();
+      const userId = req.user?.id; // ✅ get user id
+
+      if (!userId) {
+        throw new Error("Unauthorized");
+      }
+
+      const data = await this.service.getAll(userId); // ✅ PASS userId
+
       res.json({ success: true, data });
+    } catch (err: any) {
+      this.handleError(res, err);
+    }
+  };
+
+  getMyProducts = async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?.id;
+      const supplierId = req.user?.business_id; // 🔥 IMPORTANT
+
+      if (!userId || !supplierId) {
+        throw new Error("Unauthorized");
+      }
+
+      const data = await this.service.getMyProducts(userId, supplierId);
+
+      res.json({
+        success: true,
+        data,
+      });
     } catch (err: any) {
       this.handleError(res, err);
     }

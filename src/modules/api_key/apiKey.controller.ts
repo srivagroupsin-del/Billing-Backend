@@ -72,3 +72,23 @@ export const getApiKeyLogs = async (_: Request, res: Response) => {
       .json({ success: false, message: "Error fetching logs" });
   }
 };
+
+// ✅ PUBLIC API
+export const getPublicApiKey = async (req: Request, res: Response) => {
+  try {
+    const service_name = req.query.service_name as string;
+    const platform_type = req.query.platform_type as string;
+
+    const data = await service.getActiveApiKey(service_name, platform_type);
+
+    return res.json({
+      success: true,
+      api_key: data.access_token, // 👈 IMPORTANT CHANGE
+    });
+  } catch (err: any) {
+    return res.status(404).json({
+      success: false,
+      message: err.message || "API key not found",
+    });
+  }
+};

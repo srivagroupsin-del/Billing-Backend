@@ -131,7 +131,14 @@ export class StockService {
 
     const supplierList = supplierRes.data?.data?.data || [];
     const supplierMap = new Map(
-      supplierList.map((s: any) => [s.id, s.business_name]),
+      supplierList.map((s: any) => {
+        const key = s.business_cre_id || Number(String(s.id).split("-")[1]);
+
+        const name =
+          s.business_name || s.supplier_name || s.company_name || "Unknown";
+
+        return [key, name];
+      }),
     );
 
     const stocks = await this.repo.getStocks(businessId);

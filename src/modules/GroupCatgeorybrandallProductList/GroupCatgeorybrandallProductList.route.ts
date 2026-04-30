@@ -13,5 +13,5 @@ router.get("/categories-brands", getCategoryBrandStructure);
 
 // API 3
 router.get("/brand-products/:category_id/:brand_id", getBrandWithProducts);
-  
+
 export default router;

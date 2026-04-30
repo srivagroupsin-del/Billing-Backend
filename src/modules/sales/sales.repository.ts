@@ -19,12 +19,19 @@ export class SalesRepository {
     return `BILL-${String(next).padStart(5, "0")}`;
   }
 
-  async validateStockType(connection: any, stockId: number, typeId: number) {
+  async validateStockType(
+    connection: any,
+    stockId: number,
+    variantId: number,
+    typeId: number,
+  ) {
     const [rows]: any = await connection.execute(
       `SELECT id 
      FROM product_stock_types
-     WHERE stock_id = ? AND stock_type_id = ?`,
-      [stockId, typeId],
+     WHERE stock_id = ? 
+     AND variant_id = ? 
+     AND stock_type_id = ?`,
+      [stockId, variantId, typeId],
     );
 
     return rows.length > 0;
@@ -33,19 +40,26 @@ export class SalesRepository {
   async checkVariantStock(connection: any, stockId: number, variantId: number) {
     const [rows]: any = await connection.execute(
       `SELECT qty
-      FROM product_stock_variants
-      WHERE stock_id = ? AND variant_id = ?`,
+        FROM product_stock_variants
+        WHERE stock_id = ? AND variant_id = ?`,
       [stockId, variantId],
     );
     return rows[0]?.qty || 0;
   }
 
-  async checkStockTypeQty(connection: any, stockId: number, typeId: number) {
+  async checkStockTypeQty(
+    connection: any,
+    stockId: number,
+    variantId: number,
+    typeId: number,
+  ) {
     const [rows]: any = await connection.execute(
       `SELECT qty
      FROM product_stock_types
-     WHERE stock_id = ? AND stock_type_id = ?`,
-      [stockId, typeId],
+     WHERE stock_id = ? 
+     AND variant_id = ? 
+     AND stock_type_id = ?`,
+      [stockId, variantId, typeId],
     );
 
     return rows[0]?.qty || 0;
@@ -90,22 +104,23 @@ export class SalesRepository {
   }
 
   async insertBillItems(connection: any, billId: number, items: any[]) {
-    const values = items.map((i) => [
-      billId,
-      i.product_id,
-      i.variant_id,
-      i.stock_type_id,
-      i.price,
-      i.qty,
-      i.total,
-    ]);
-
-    await connection.query(
-      `INSERT INTO sales_bill_items
-      (bill_id,product_id,variant_id,stock_type_id,price,qty,total)
-      VALUES ?`,
-      [values],
-    );
+    for (const i of items) {
+      await connection.execute(
+        `INSERT INTO sales_bill_items
+      (bill_id, product_id, variant_id, stock_type_id, stock_id, price, qty, total)
+      VALUES (?,?,?,?,?,?,?,?)`,
+        [
+          billId,
+          i.product_id,
+          i.variant_id ?? null,
+          i.stock_type_id ?? null,
+          i.stock_id ?? null,
+          i.price ?? 0,
+          i.qty ?? 0,
+          i.total ?? 0,
+        ],
+      );
+    }
   }
 
   async reduceVariantStockSafe(
@@ -127,9 +142,11 @@ export class SalesRepository {
       throw new Error("Variant stock not available");
     }
   }
+
   async reduceStockTypeSafe(
     connection: any,
     stockId: number,
+    variantId: number,
     typeId: number,
     qty: number,
   ) {
@@ -137,15 +154,17 @@ export class SalesRepository {
       `UPDATE product_stock_types
      SET qty = qty - ?
      WHERE stock_id = ?
+     AND variant_id = ?
      AND stock_type_id = ?
      AND qty >= ?`,
-      [qty, stockId, typeId, qty],
+      [qty, stockId, variantId, typeId, qty],
     );
 
     if (result.affectedRows === 0) {
       throw new Error("Stock type not available");
     }
   }
+
   async getBillByNumber(
     connection: any,
     businessId: number,
@@ -178,6 +197,7 @@ export class SalesRepository {
       product_id,
       variant_id,
       stock_type_id,
+      stock_id,
       price,
       qty,
       total

@@ -1,4 +1,6 @@
+import axios from "axios";
 import { SupplierProductRepository } from "./supplierProduct.repository";
+import * as authRepo from "../../modules/auth/auth.repository";
 
 type SupplierProductInput = {
   product_id: number;
@@ -78,8 +80,70 @@ export class SupplierProductService {
   }
 
   // 🔹 LIST
-  async getAll() {
-    return await this.repo.getAll();
+  async getAll(userId: number) {
+    const user = await authRepo.getUserById(userId);
+
+    const supplierRes = await axios.get(
+      "https://user.jobes24x7.com/api/suppliers",
+      {
+        headers: {
+          Authorization: `Bearer ${user.central_token}`,
+        },
+      },
+    );
+
+    const supplierList = supplierRes.data?.data?.data || [];
+
+    const supplierMap = new Map(
+      supplierList.map((s: any) => {
+        const key = s.business_cre_id || Number(String(s.id).split("-")[1]);
+
+        const name =
+          s.business_name || s.supplier_name || s.company_name || "Unknown";
+
+        return [key, name];
+      }),
+    );
+
+    const rows = await this.repo.getAll();
+
+    return rows.map((r: any) => ({
+      ...r,
+      supplier_name: supplierMap.get(r.supplier_id) || null,
+    }));
+  }
+
+  async getMyProducts(userId: number, supplierId: number) {
+    const user = await authRepo.getUserById(userId);
+
+    const supplierRes = await axios.get(
+      "https://user.jobes24x7.com/api/suppliers",
+      {
+        headers: {
+          Authorization: `Bearer ${user.central_token}`,
+        },
+      },
+    );
+
+    const supplierList = supplierRes.data?.data?.data || [];
+
+    const supplierMap = new Map(
+      supplierList.map((s: any) => {
+        const key = s.business_cre_id || Number(String(s.id).split("-")[1]);
+
+        const name =
+          s.business_name || s.supplier_name || s.company_name || "Unknown";
+
+        return [key, name];
+      }),
+    );
+
+    const rows = await this.repo.getBySupplierId(supplierId);
+
+    return rows.map((r: any) => ({
+      ...r,
+      supplier_name: supplierMap.get(r.supplier_id) || null,
+    }));
   }
 
   // 🔹 UPDATE

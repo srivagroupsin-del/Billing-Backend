@@ -58,7 +58,7 @@ export class SupplierRequestController {
     try {
       const user = this.getUser(req);
 
-      const data = await this.service.getAll(user.business_id);
+      const data = await this.service.getAll(user.business_id, user.id);
 
       res.json({ success: true, data });
     } catch (err: any) {
@@ -71,7 +71,7 @@ export class SupplierRequestController {
     try {
       const user = this.getUser(req);
 
-      const data = await this.service.getReceived(user.business_id);
+      const data = await this.service.getReceived(user.business_id, user.id);
 
       res.json({ success: true, data });
     } catch (err: any) {

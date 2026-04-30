@@ -52,11 +52,27 @@ export class QuotationController {
   };
 
   // 🔹 LIST
-  getAll = async (req: AuthRequest, res: Response) => {
+  // 🔥 ALL (Admin)
+  getAll = async (_req: AuthRequest, res: Response) => {
     try {
-      const user = this.getUser(req);
+      const data = await this.service.getAll();
 
-      const data = await this.service.getAll(user.business_id);
+      res.json({ success: true, data });
+    } catch (err: any) {
+      this.handleError(res, err);
+    }
+  };
+
+  // 🔥 MY (Supplier)
+  getMy = async (req: AuthRequest, res: Response) => {
+    try {
+      const supplierId = req.user?.business_id;
+
+      if (!supplierId) {
+        throw new Error("Unauthorized");
+      }
+
+      const data = await this.service.getBySupplierId(supplierId);
 
       res.json({ success: true, data });
     } catch (err: any) {

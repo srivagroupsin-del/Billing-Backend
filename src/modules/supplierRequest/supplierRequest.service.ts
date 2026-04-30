@@ -1,10 +1,15 @@
 import pool from "../../config/db";
 import { SupplierRequestRepository } from "./supplierRequest.repository";
+import { StockRepository } from "../stock/stock.repository";
 import { MovementRepository } from "../../modules/stockMovement/movement.repository";
+import { SupplierService } from "../suppliers/supplier.service";
+import { getAllBusinesses } from "../business/business.service";
 
 export class SupplierRequestService {
   private repo = new SupplierRequestRepository();
   private movementRepo = new MovementRepository();
+  private supplierService = new SupplierService();
+  private stockRepo = new StockRepository();
 
   validate(data: any) {
     if (!data.supplier_id || !data.delivery_datetime) {
@@ -91,7 +96,6 @@ export class SupplierRequestService {
     }
   }
 
-  // 🔥 CREATE
   async create(data: any, userId: number, businessId: number) {
     this.validate(data);
 
@@ -122,22 +126,59 @@ export class SupplierRequestService {
     }
   }
 
-  async getAll(businessId: number) {
-    return await this.repo.getAll(businessId);
+  async getAll(businessId: number, userId: number) {
+    const rows = await this.repo.getAll(businessId);
+
+    const supplierData = await this.supplierService.getSuppliers(userId);
+
+    const map = new Map(
+      supplierData.suppliers.map((s: any) => [
+        s.business_cre_id || s.id, // 🔥 FIX
+        s.business_name || s.supplier_name || s.company_name || "Unknown",
+      ]),
+    );
+
+    return rows.map((r: any) => ({
+      ...r,
+      supplier_name: map.get(r.supplier_id) || "Unknown",
+    }));
   }
 
-  async getReceived(supplierId: number) {
-    return await this.repo.getReceivedRequests(supplierId);
+  async getReceived(supplierId: number, userId: number) {
+    const rows = await this.repo.getReceivedRequests(supplierId);
+
+    // ✅ use ALL businesses API
+    const businessRes = await getAllBusinesses(userId);
+
+    const map = new Map(
+      businessRes.data.map((b: any) => [
+        b.id,
+        b.business_name, // 🔥 IMPORTANT FIELD
+      ]),
+    );
+
+    return rows.map((r: any) => ({
+      ...r,
+      business_name: map.get(r.business_id) || "Unknown",
+    }));
   }
 
-  async getById(id: number, businessId: number) {
+  async getById(id: number, userId: number) {
     const data = await this.repo.getById(id);
 
-    if (data.business_id !== businessId && data.supplier_id !== businessId) {
-      throw new Error("Unauthorized access");
-    }
+    const supplierData = await this.supplierService.getSuppliers(userId);
 
-    return data;
+    const map = new Map(
+      supplierData.suppliers.map((s: any) => [
+        s.business_cre_id,
+        s.business_name,
+      ]),
+    );
+
+    return {
+      ...data,
+      supplier_name: map.get(data.supplier_id) || "Unknown",
+    };
   }
 
   // 🔥 UPDATE
@@ -188,6 +229,9 @@ export class SupplierRequestService {
     userId: number,
     businessId: number,
   ) {
+    // 🔥 normalize status
+    status = status.toLowerCase();
+
     const allowed = [
       "pending",
       "accepted",
@@ -210,6 +254,10 @@ export class SupplierRequestService {
 
       if (!request) throw new Error("Request not found");
 
+      if (!request.items || request.items.length === 0) {
+        throw new Error("Request items missing");
+      }
+
       const isCreator = request.business_id === businessId;
       const isSupplier = request.supplier_id === businessId;
 
@@ -219,10 +267,12 @@ export class SupplierRequestService {
 
       const currentStatus = request.status;
 
+      // 🔥 prevent duplicate same status
       if (currentStatus === status) {
         throw new Error("Already in this status");
       }
 
+      // 🔥 valid transitions
       const validTransitions: any = {
         pending: ["accepted", "partial_accepted", "cancelled"],
         accepted: ["shipped", "cancelled"],
@@ -238,6 +288,7 @@ export class SupplierRequestService {
         );
       }
 
+      // 🔥 BUSINESS RULES
       if (isCreator) {
         if (status !== "cancelled") {
           throw new Error("Creator can only cancel request");
@@ -248,6 +299,7 @@ export class SupplierRequestService {
         }
       }
 
+      // 🔥 SUPPLIER RULES
       if (isSupplier) {
         const allowedSupplierStatuses = [
           "accepted",
@@ -260,15 +312,16 @@ export class SupplierRequestService {
           throw new Error("Supplier not allowed");
         }
 
-        if (status === "partial_accepted" && !reason) {
-          throw new Error("Reason required");
+        if (status === "partial_accepted" && (!reason || !reason.trim())) {
+          throw new Error("Reason required for partial acceptance");
         }
       }
 
-      await this.repo.updateStatus(id, status, reason || null, userId);
+      // 🔥 UPDATE STATUS (INSIDE TRANSACTION)
+      await this.repo.updateStatus(conn, id, status, reason || null, userId);
 
-      // 🔥 STOCK MOVEMENT
-      if (status === "delivered") {
+      // 🔥 STOCK MOVEMENT (ONLY ON FIRST DELIVERY)
+      if (currentStatus !== "delivered" && status === "delivered") {
         for (const item of request.items) {
           if (!item.stock_id) {
             throw new Error(`Stock ID missing for item ${item.id}`);
@@ -280,11 +333,17 @@ export class SupplierRequestService {
             stock_id: item.stock_id,
             variant_id: item.variant_id,
             stock_type_id: null,
-            movement_type: "IN",
+            movement_type: "PURCHASE",
             qty: item.quantity,
             storage_location_id: null,
             reference_type: "supplier_request",
             reference_id: id,
+          });
+
+          await this.stockRepo.increaseStock(conn, {
+            stock_id: item.stock_id,
+            variant_id: item.variant_id,
+            qty: item.quantity,
           });
         }
       }

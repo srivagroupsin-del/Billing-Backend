@@ -1,14 +1,32 @@
 import apiDb from "../../config/api_key_validation";
 
+const getPrefix = (platform: string) => {
+  switch (platform) {
+    case "WEB":
+      return "W_";
+    case "MOBILE":
+      return "M_";
+    case "DESKTOP":
+      return "D_";
+    default:
+      throw new Error("Invalid platform");
+  }
+};
+
 // 🔍 FIND
 export const findByService = async (
   service_name: string,
   platform_type: string,
 ) => {
+  const prefix = getPrefix(platform_type);
+
   const [rows]: any = await apiDb.query(
-    `SELECT * FROM api_keys WHERE service_name=? AND platform_type=?`,
-    [service_name, platform_type],
+    `SELECT * FROM api_keys 
+     WHERE service_name=? 
+     AND access_token LIKE ?`,
+    [service_name, `${prefix}%`],
   );
+
   return rows[0];
 };
 
@@ -16,14 +34,14 @@ export const findByService = async (
 export const insertApiKey = async (
   service_name: string,
   platform_type: string,
-  api_key: string,
+  access_token: string,
   expires_at: string,
 ) => {
   await apiDb.query(
     `INSERT INTO api_keys 
-     (service_name, platform_type, api_key, expires_at, is_active)
+     (service_name, platform_type, access_token, expires_at, is_active)
      VALUES (?, ?, ?, ?, 1)`,
-    [service_name, platform_type, api_key, expires_at],
+    [service_name, platform_type, access_token, expires_at],
   );
 };
 
@@ -31,14 +49,17 @@ export const insertApiKey = async (
 export const updateApiKey = async (
   service_name: string,
   platform_type: string,
-  api_key: string,
+  access_token: string,
   expires_at: string,
 ) => {
+  const prefix = getPrefix(platform_type);
+
   await apiDb.query(
     `UPDATE api_keys 
-     SET api_key=?, expires_at=?, is_active=1, updated_at=NOW()
-     WHERE service_name=? AND platform_type=?`,
-    [api_key, expires_at, service_name, platform_type],
+     SET access_token=?, expires_at=?, is_active=1, updated_at=NOW()
+     WHERE service_name=? 
+     AND access_token LIKE ?`,
+    [access_token, expires_at, service_name, `${prefix}%`],
   );
 };
 
@@ -46,14 +67,14 @@ export const updateApiKey = async (
 export const insertLog = async (
   service_name: string,
   platform_type: string,
-  oldKey: string,
-  newKey: string,
+  oldToken: string,
+  newToken: string,
 ) => {
   await apiDb.query(
     `INSERT INTO api_key_logs 
      (service_name, platform_type, old_api_key, new_api_key, changed_by)
      VALUES (?, ?, ?, ?, ?)`,
-    [service_name, platform_type, oldKey, newKey, "ADMIN"],
+    [service_name, platform_type, oldToken, newToken, "ADMIN"],
   );
 };
 
@@ -71,4 +92,25 @@ export const getLogs = async () => {
     `SELECT * FROM api_key_logs ORDER BY id DESC`,
   );
   return rows;
+};
+
+// ✅ GET ACTIVE TOKEN
+export const getActiveKey = async (
+  service_name: string,
+  platform_type: string,
+) => {
+  const prefix = getPrefix(platform_type);
+
+  const [rows]: any = await apiDb.query(
+    `SELECT access_token 
+     FROM api_keys 
+     WHERE service_name = ?
+       AND access_token LIKE ?
+       AND is_active = 1
+       AND expires_at > NOW()
+     LIMIT 1`,
+    [service_name, `${prefix}%`],
+  );
+
+  return rows[0];
 };

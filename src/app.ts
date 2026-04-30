@@ -1,5 +1,6 @@
 import express, { Application, Request, Response } from "express";
 import cors, { CorsOptions } from "cors";
+import responseTime from "response-time";
 import userRoutes from "./modules/users/user.routes";
 import authRoutes from "./modules/auth/auth.route";
 import { authMiddleware } from "./middlewares/auth.middlewares";
@@ -22,13 +23,32 @@ import supplierRequest from "./modules/supplierRequest/supplierRequest.routes";
 import { verifyApiKey } from "./middlewares/api_key.verfication";
 import apiKeyRoutes from "./modules/api_key/apiKey.routes";
 import variantsRoutes from "./modules/variants/variants.routes";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 
 const app: Application = express();
+
+app.use(helmet());
+app.disable("x-powered-by");
+app.use(express.json({ limit: "10kb" }));
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+});
+app.use("/api", limiter);
 
 const corsOptions: CorsOptions = {
   origin: true,
   credentials: true,
 };
+
+// const corsOptions = {
+//   // Removed the trailing slashes from the URLs
+//   origin: ["https://billing.srivagroups.in/"],
+//   credentials: true,
+//   optionsSuccessStatus: 200, // Some legacy browsers (IE11) choke on 204
+// };
 
 app.use(cors(corsOptions));
 
@@ -37,7 +57,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(
+  responseTime((req: Request, res: Response, time: number) => {
+    console.log(`${req.method} ${req.url} - ${time.toFixed(2)} ms`);
+  }),
+);
 
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({
