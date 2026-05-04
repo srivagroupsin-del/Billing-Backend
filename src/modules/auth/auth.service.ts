@@ -2,20 +2,21 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import * as authRepo from "./auth.repository";
 import { getBusinessList } from "../business/business.service";
+import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
 
 export const login = async (email: string, password: string) => {
   try {
+    const headers = await getAuthHeadersAuth();
     // 🔹 Call central API
     const response = await axios.post(
       "https://user.jobes24x7.com/api/login/authenticate",
       { email, password },
       {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers,
       },
     );
+
+    console.log(response.data);
 
     const apiData = response.data?.data;
 

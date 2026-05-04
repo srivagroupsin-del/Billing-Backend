@@ -1,30 +1,15 @@
 import apiDb from "../../config/api_key_validation";
 
-const getPrefix = (platform: string) => {
-  switch (platform) {
-    case "WEB":
-      return "W_";
-    case "MOBILE":
-      return "M_";
-    case "DESKTOP":
-      return "D_";
-    default:
-      throw new Error("Invalid platform");
-  }
-};
-
 // 🔍 FIND
 export const findByService = async (
   service_name: string,
   platform_type: string,
 ) => {
-  const prefix = getPrefix(platform_type);
-
   const [rows]: any = await apiDb.query(
     `SELECT * FROM api_keys 
      WHERE service_name=? 
-     AND access_token LIKE ?`,
-    [service_name, `${prefix}%`],
+     AND platform_type=?`,
+    [service_name, platform_type],
   );
 
   return rows[0];
@@ -52,14 +37,12 @@ export const updateApiKey = async (
   access_token: string,
   expires_at: string,
 ) => {
-  const prefix = getPrefix(platform_type);
-
   await apiDb.query(
     `UPDATE api_keys 
      SET access_token=?, expires_at=?, is_active=1, updated_at=NOW()
      WHERE service_name=? 
-     AND access_token LIKE ?`,
-    [access_token, expires_at, service_name, `${prefix}%`],
+     AND platform_type=?`,
+    [access_token, expires_at, service_name, platform_type],
   );
 };
 
@@ -99,17 +82,15 @@ export const getActiveKey = async (
   service_name: string,
   platform_type: string,
 ) => {
-  const prefix = getPrefix(platform_type);
-
   const [rows]: any = await apiDb.query(
-    `SELECT access_token 
+    `SELECT access_token, expires_at 
      FROM api_keys 
      WHERE service_name = ?
-       AND access_token LIKE ?
+       AND platform_type = ?
        AND is_active = 1
        AND expires_at > NOW()
      LIMIT 1`,
-    [service_name, `${prefix}%`],
+    [service_name, platform_type],
   );
 
   return rows[0];

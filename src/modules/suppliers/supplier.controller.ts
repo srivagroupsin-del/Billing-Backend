@@ -14,14 +14,21 @@ export class SupplierController {
       const data = await this.service.createSupplier(req.user!.id, req.body);
       res.json({ success: true, data });
     } catch (err: any) {
-      console.error("❌ CREATE SUPPLIER:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      const apiError = err?.response?.data;
+
+      console.error("❌ CREATE SUPPLIER:", apiError || err.message);
+
+      return res.status(apiError?.data?.code || 500).json({
+        success: false,
+        message:
+          apiError?.data?.message || err.message || "Something went wrong",
+      });
     }
   };
 
   getAll = async (req: AuthRequest, res: Response) => {
     try {
-      const data = await this.service.getSuppliers(req.user!.id);
+      const data = await this.service.getAllSuppliers(req.user!.id);
       res.json({ success: true, data });
     } catch (err: any) {
       console.error("❌ GET SUPPLIERS:", err.message);

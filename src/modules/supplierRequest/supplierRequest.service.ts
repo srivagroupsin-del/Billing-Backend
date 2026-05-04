@@ -21,8 +21,10 @@ export class SupplierRequestService {
     }
 
     data.items.forEach((i: any) => {
-      if (!i.product_id || !i.variant_id || !i.quantity) {
-        throw new Error("Invalid item");
+      if (!i.product_id || !i.variant_id || !i.quantity || !i.stock_id) {
+        throw new Error(
+          "Invalid item (product_id, variant_id, quantity, stock_id required)",
+        );
       }
     });
   }
@@ -35,64 +37,26 @@ export class SupplierRequestService {
     requestId?: number,
   ) {
     for (const i of items) {
+      // ✅ NEW: validate stock belongs to product + business
+      const [stockCheck]: any = await conn.query(
+        `SELECT id FROM product_stock 
+     WHERE id = ? AND product_id = ? AND business_id = ? AND is_deleted = 0`,
+        [i.stock_id, i.product_id, businessId],
+      );
+
+      if (!stockCheck.length) {
+        throw new Error(
+          `Invalid stock_id ${i.stock_id} for product ${i.product_id}`,
+        );
+      }
+
       // 1. allocation config
       const [alloc]: any = await conn.query(
         `SELECT min_sale_qty, max_sale_qty 
-         FROM business_product_allocations 
-         WHERE business_id = ? AND product_id = ? AND is_active = 1`,
+     FROM business_product_allocations 
+     WHERE business_id = ? AND product_id = ? AND is_active = 1`,
         [businessId, i.product_id],
       );
-
-      if (!alloc.length) {
-        throw new Error(`No allocation found for product ${i.product_id}`);
-      }
-
-      const { min_sale_qty, max_sale_qty } = alloc[0];
-
-      // 2. current stock
-      const [stock]: any = await conn.query(
-        `
-        SELECT SUM(psv.qty) as total
-        FROM product_stock_variants psv
-        JOIN product_stock ps ON ps.id = psv.stock_id
-        WHERE ps.product_id = ? AND psv.is_deleted = 0
-        `,
-        [i.product_id],
-      );
-
-      const currentStock = stock[0]?.total || 0;
-
-      // 🔥 (OPTIONAL PRO) exclude existing request qty during update
-      let existingRequestQty = 0;
-
-      if (requestId) {
-        const [existing]: any = await conn.query(
-          `SELECT SUM(quantity) as total 
-           FROM supplier_request_items 
-           WHERE request_id = ? AND product_id = ? AND is_deleted = 0`,
-          [requestId, i.product_id],
-        );
-
-        existingRequestQty = existing[0]?.total || 0;
-      }
-
-      // 3. allowed qty
-      const allowedQty = max_sale_qty - (currentStock - existingRequestQty);
-
-      if (allowedQty <= 0) {
-        throw new Error(`Stock already full for product ${i.product_id}`);
-      }
-
-      if (i.quantity > allowedQty) {
-        throw new Error(
-          `Max allowed request for product ${i.product_id} is ${allowedQty}`,
-        );
-      }
-
-      // optional min check
-      if (currentStock + i.quantity < min_sale_qty) {
-        throw new Error(`Minimum required stock is ${min_sale_qty}`);
-      }
     }
   }
 
@@ -129,7 +93,7 @@ export class SupplierRequestService {
   async getAll(businessId: number, userId: number) {
     const rows = await this.repo.getAll(businessId);
 
-    const supplierData = await this.supplierService.getSuppliers(userId);
+    const supplierData = await this.supplierService.getAllSuppliers(userId);
 
     const map = new Map(
       supplierData.suppliers.map((s: any) => [
@@ -166,7 +130,7 @@ export class SupplierRequestService {
   async getById(id: number, userId: number) {
     const data = await this.repo.getById(id);
 
-    const supplierData = await this.supplierService.getSuppliers(userId);
+    const supplierData = await this.supplierService.getAllSuppliers(userId);
 
     const map = new Map(
       supplierData.suppliers.map((s: any) => [

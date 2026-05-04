@@ -2,6 +2,7 @@ import axios from "axios";
 import pool from "../../config/db";
 import { StockRepository } from "./stock.repository";
 import * as authRepo from "../../modules/auth/auth.repository";
+import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
 
 export class StockService {
   private repo = new StockRepository();
@@ -119,11 +120,13 @@ export class StockService {
     if (!user?.central_token) {
       throw new Error("Central token missing");
     }
+    const headers = await getAuthHeadersAuth();
 
     const supplierRes = await axios.get(
       "https://user.jobes24x7.com/api/suppliers",
       {
         headers: {
+          ...headers,
           Authorization: `Bearer ${user.central_token}`,
         },
       },
@@ -181,21 +184,36 @@ export class StockService {
       });
     });
 
-    return stocks.map((row: any) => ({
-      id: row.stock_id,
-      product_id: row.product_id,
-      product_name: row.product_name,
-      created_at: row.created_at,
+    return stocks.map((row: any) => {
+      const variants = variantMap[row.stock_id] || [];
 
-      supplier: row.supplier_id
-        ? {
-            id: row.supplier_id,
-            name: supplierMap.get(row.supplier_id) || null,
-          }
-        : null,
+      // ✅ calculate total from stock_types (BEST METHOD)
+      const total_qty = variants.reduce((sum: number, v: any) => {
+        const typeTotal = (v.stock_types || []).reduce(
+          (tSum: number, t: any) => tSum + (t.qty || 0),
+          0,
+        );
+        return sum + typeTotal;
+      }, 0);
 
-      variants: variantMap[row.stock_id] || [],
-    }));
+      return {
+        id: row.stock_id,
+        product_id: row.product_id,
+        product_name: row.product_name,
+        created_at: row.created_at,
+
+        supplier: row.supplier_id
+          ? {
+              id: row.supplier_id,
+              name: supplierMap.get(row.supplier_id) || null,
+            }
+          : null,
+
+        total_qty, // 🔥 NEW FIELD
+
+        variants,
+      };
+    });
   }
 
   async getStockById(stockId: number, businessId: number) {
@@ -224,10 +242,23 @@ export class StockService {
           qty: found?.qty || 0,
         };
       });
+
+      // ✅ NEW: per-variant total
+      v.total_qty = v.stock_types.reduce(
+        (sum: number, t: any) => sum + (t.qty || 0),
+        0,
+      );
     });
+
+    // ✅ NEW: overall stock total
+    const total_qty = variants.reduce(
+      (sum: number, v: any) => sum + (v.total_qty || 0),
+      0,
+    );
 
     return {
       ...stock,
+      total_qty, // 🔥 ADD THIS
       variants,
     };
   }

@@ -1,6 +1,7 @@
 import { CustomerRepository } from "./customer.repository";
 import axios from "axios";
 import * as authRepo from "../auth/auth.repository";
+import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
 
 export class CustomerService {
   private repo = new CustomerRepository();
@@ -24,10 +25,12 @@ export class CustomerService {
     }
 
     try {
+      const headers = await getAuthHeadersAuth();
       const response = await axios.get(
         `https://user.jobes24x7.com/api/login/phone/${phone}`,
         {
           headers: {
+            ...headers,
             Authorization: `Bearer ${user.central_token}`,
             Accept: "application/json",
           },
@@ -74,11 +77,12 @@ export class CustomerService {
     if (new Date(user.central_token_expiry) < new Date()) {
       throw new Error("Session expired. Please login again.");
     }
-
+    const headers = await getAuthHeadersAuth();
     const response = await axios.get(
       `https://user.jobes24x7.com/api/business-cres`,
       {
         headers: {
+          ...headers,
           Authorization: `Bearer ${user.central_token}`,
           Accept: "application/json",
         },
@@ -135,11 +139,13 @@ export class CustomerService {
     if (new Date(user.central_token_expiry) < new Date()) {
       throw new Error("Session expired. Please login again.");
     }
+    const headers = await getAuthHeadersAuth();
 
     const response = await axios.get(
       `https://user.jobes24x7.com/api/logins/non-register`,
       {
         headers: {
+          ...headers,
           Authorization: `Bearer ${user.central_token}`,
           Accept: "application/json",
         },

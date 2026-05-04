@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express, { Application, Request, Response } from "express";
 import cors, { CorsOptions } from "cors";
 import responseTime from "response-time";
@@ -27,6 +30,8 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 
 const app: Application = express();
+
+app.set("trust proxy", 1); // 👈 ADD THIS LINE
 
 app.use(helmet());
 app.disable("x-powered-by");

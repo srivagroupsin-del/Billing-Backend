@@ -3,7 +3,6 @@ import crypto from "crypto";
 import stringify from "fast-json-stable-stringify";
 
 const ADMIN_SECRET = process.env.API_KEY_ADMIN_SECRET || "MY_SECRET_KEY";
-const ALLOWED_IPS = ["127.0.0.1", "::1", "YOUR_EXTERNAL_SERVER_IP"];
 export const verifyAdminAccess = (
   req: Request,
   res: Response,
@@ -15,13 +14,6 @@ export const verifyAdminAccess = (
       (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
       req.socket.remoteAddress ||
       req.ip;
-
-    // if (!ALLOWED_IPS.includes(clientIp || "")) {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "IP not allowed",
-    //   });
-    // }
 
     // 🔐 2. ADMIN SECRET
     const adminSecret = req.header("x-admin-secret");
@@ -70,8 +62,20 @@ export const verifyAdminAccess = (
       });
     }
 
+    console.log("ENV SECRET:", process.env.API_KEY_ADMIN_SECRET);
+    console.log("timestamp:", timestamp);
+    console.log("signature:", signature);
+    console.log("expectedSignature:", expectedSignature);
+    console.log("payload:", payload);
+
     console.log("🔐 Admin Access Attempt:", {
       ip: clientIp,
+      timestamp,
+    });
+
+    console.log({
+      adminSecret,
+      signature,
       timestamp,
     });
 

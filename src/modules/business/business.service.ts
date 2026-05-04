@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as authRepo from "../auth/auth.repository";
+import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
 
 export const getBusinessList = async (userId: number) => {
   // 🔹 1. Get user from DB
@@ -22,11 +23,14 @@ export const getBusinessList = async (userId: number) => {
     throw new Error("Session expired. Please login again.");
   }
 
+  const headers = await getAuthHeadersAuth();
+
   // 🔹 2. Call THEIR API
   const response = await axios.get(
     `https://user.jobes24x7.com/api/business-cre/main/${user.user_id}`,
     {
       headers: {
+        ...headers,
         Authorization: `Bearer ${user.central_token}`,
         Accept: "application/json",
       },
@@ -56,11 +60,14 @@ export const getAllBusinesses = async (userId: number) => {
     throw new Error("Session expired. Please login again.");
   }
 
+  const headers = await getAuthHeadersAuth();
+
   // 🔹 Call central API
   const response = await axios.get(
     `https://user.jobes24x7.com/api/business-cres`,
     {
       headers: {
+        ...headers,
         Authorization: `Bearer ${user.central_token}`,
         Accept: "application/json",
       },

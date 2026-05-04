@@ -1,8 +1,8 @@
 import axios from "axios";
 import * as authRepo from "../../modules/auth/auth.repository";
+import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
 
-const USER_API = "https://user.jobes24x7.com/api";
-const SUPPLIER_API = "https://supplier.jobes24x7.com/api";
+const USER_API = "https://supplier.jobes24x7.com/api";
 
 export class SupplierService {
   private async getHeaders(userId: number) {
@@ -15,7 +15,10 @@ export class SupplierService {
       throw new Error("Session expired");
     }
 
+    const apiHeaders = await getAuthHeadersAuth();
+
     return {
+      ...apiHeaders,
       Authorization: `Bearer ${user.central_token}`,
       Accept: "application/json",
     };
@@ -25,7 +28,9 @@ export class SupplierService {
   async createSupplier(userId: number, payload: any) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.post(`${USER_API}/supplier/create`, payload);
+    const res = await axios.post(`${USER_API}/supplier/create`, payload, {
+      headers,
+    });
 
     return res.data;
   }
@@ -34,7 +39,7 @@ export class SupplierService {
   async getAllSuppliers(userId: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.get(`${USER_API}/suppliers`);
+    const res = await axios.get(`${USER_API}/suppliers`, { headers });
 
     return res.data;
   }
@@ -43,7 +48,7 @@ export class SupplierService {
   async getSupplierById(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.get(`${USER_API}/supplier/${id}`);
+    const res = await axios.get(`${USER_API}/supplier/${id}`, { headers });
 
     return res.data;
   }
@@ -52,7 +57,7 @@ export class SupplierService {
   async getSupplierFull(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.get(`${USER_API}/supplier/full/${id}`);
+    const res = await axios.get(`${USER_API}/supplier/full/${id}`, { headers });
 
     return res.data;
   }
@@ -61,7 +66,9 @@ export class SupplierService {
   async updateSupplier(userId: number, id: number, payload: any) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.put(`${USER_API}/supplier/update/${id}`, payload);
+    const res = await axios.put(`${USER_API}/supplier/update/${id}`, payload, {
+      headers,
+    });
 
     return res.data;
   }
@@ -70,7 +77,9 @@ export class SupplierService {
   async deleteSupplier(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.delete(`${USER_API}/supplier/delete/${id}`);
+    const res = await axios.delete(`${USER_API}/supplier/delete/${id}`, {
+      headers,
+    });
 
     return res.data;
   }
@@ -82,7 +91,9 @@ export class SupplierService {
   async createBranch(userId: number, payload: any) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.post(`${USER_API}/branch/create`, payload);
+    const res = await axios.post(`${USER_API}/branch/create`, payload, {
+      headers,
+    });
 
     return res.data;
   }
@@ -90,7 +101,9 @@ export class SupplierService {
   async getBranches(userId: number, supplierId: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.get(`${USER_API}/branches/${supplierId}`);
+    const res = await axios.get(`${USER_API}/branches/${supplierId}`, {
+      headers,
+    });
 
     return res.data;
   }
@@ -98,7 +111,9 @@ export class SupplierService {
   async updateBranch(userId: number, id: number, payload: any) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.put(`${USER_API}/branch/update/${id}`, payload);
+    const res = await axios.put(`${USER_API}/branch/update/${id}`, payload, {
+      headers,
+    });
 
     return res.data;
   }
@@ -106,54 +121,10 @@ export class SupplierService {
   async deleteBranch(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.delete(`${USER_API}/branch/delete/${id}`);
+    const res = await axios.delete(`${USER_API}/branch/delete/${id}`, {
+      headers,
+    });
 
     return res.data;
-  }
-
-  async getSuppliers(userId: number) {
-    const headers = await this.getHeaders(userId);
-
-    try {
-      const [userApiRes, supplierApiRes] = await Promise.all([
-        // 🔐 WITH AUTH
-        axios.get(`${USER_API}/suppliers`, { headers }),
-
-        // 🌐 NO AUTH
-        axios.get(`${SUPPLIER_API}/suppliers`),
-      ]);
-
-      const userList = userApiRes.data?.data?.data || [];
-
-      const supplierRaw = supplierApiRes.data?.data;
-
-      const supplierList = Array.isArray(supplierRaw?.data)
-        ? supplierRaw.data
-        : Array.isArray(supplierRaw)
-          ? supplierRaw
-          : [];
-
-      const formattedUser = userList.map((s: any) => ({
-        ...s,
-        id: `registered-${s.id}`,
-        source: "user",
-      }));
-
-      const formattedSupplier = supplierList.map((s: any) => ({
-        ...s,
-        id: `unregistered-${s.id}`,
-        source: "supplier",
-      }));
-
-      const merged = [...formattedUser, ...formattedSupplier];
-
-      return {
-        count: merged.length,
-        suppliers: merged,
-      };
-    } catch (err: any) {
-      console.log("❌ MERGE ERROR:", err.response?.data || err.message);
-      throw new Error("Failed to fetch suppliers");
-    }
   }
 }
