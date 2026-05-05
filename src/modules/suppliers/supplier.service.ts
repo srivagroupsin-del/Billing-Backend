@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as authRepo from "../../modules/auth/auth.repository";
-import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
+import { getAuthHeaders } from "../../utils/getAuthHeaders";
 
 const USER_API = "https://supplier.jobes24x7.com/api";
 
@@ -15,7 +15,7 @@ export class SupplierService {
       throw new Error("Session expired");
     }
 
-    const apiHeaders = await getAuthHeadersAuth();
+    const apiHeaders = await getAuthHeaders();
 
     return {
       ...apiHeaders,
@@ -48,7 +48,7 @@ export class SupplierService {
   async getSupplierById(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
-    const res = await axios.get(`${USER_API}/supplier/${id}`, { headers });
+    const res = await axios.get(`${USER_API}/supplier/full/${id}`, { headers });
 
     return res.data;
   }

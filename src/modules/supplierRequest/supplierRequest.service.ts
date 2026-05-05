@@ -95,9 +95,11 @@ export class SupplierRequestService {
 
     const supplierData = await this.supplierService.getAllSuppliers(userId);
 
+    const suppliers = supplierData?.data?.data || [];
+
     const map = new Map(
-      supplierData.suppliers.map((s: any) => [
-        s.business_cre_id || s.id, // 🔥 FIX
+      suppliers.map((s: any) => [
+        s.business_cre_id || s.id,
         s.business_name || s.supplier_name || s.company_name || "Unknown",
       ]),
     );
@@ -132,10 +134,12 @@ export class SupplierRequestService {
 
     const supplierData = await this.supplierService.getAllSuppliers(userId);
 
+    const suppliers = supplierData?.data?.data || [];
+
     const map = new Map(
-      supplierData.suppliers.map((s: any) => [
-        s.business_cre_id,
-        s.business_name,
+      suppliers.map((s: any) => [
+        s.business_cre_id || s.id,
+        s.business_name || s.supplier_name || s.company_name || "Unknown",
       ]),
     );
 

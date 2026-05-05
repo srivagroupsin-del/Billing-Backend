@@ -28,6 +28,7 @@ import apiKeyRoutes from "./modules/api_key/apiKey.routes";
 import variantsRoutes from "./modules/variants/variants.routes";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { syncFromRegistry } from "./modules/api_key/apiKey.service";
 
 const app: Application = express();
 
@@ -43,17 +44,16 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
-const corsOptions: CorsOptions = {
-  origin: true,
-  credentials: true,
-};
-
-// const corsOptions = {
-//   // Removed the trailing slashes from the URLs
-//   origin: ["https://billing.srivagroups.in/"],
+// const corsOptions: CorsOptions = {
+//   origin: true,
 //   credentials: true,
-//   optionsSuccessStatus: 200, // Some legacy browsers (IE11) choke on 204
 // };
+
+const corsOptions = {
+  origin: ["https://billing.srivagroups.in"], // ✅ no trailing slash
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
 
 app.use(cors(corsOptions));
 
@@ -79,6 +79,30 @@ app.use("/api/auth", authRoutes);
 
 // 🔐 Admin
 app.use("/api/admin/api-key", apiKeyRoutes);
+
+// 🔥 ADD HERE (after setup, before routes or after routes both fine)
+
+let isSyncing = false;
+
+const safeSync = async () => {
+  if (isSyncing) return; // prevent overlap
+
+  try {
+    isSyncing = true;
+    await syncFromRegistry();
+    console.log("✅ Token sync success");
+  } catch (err) {
+    console.error("❌ Token sync failed:", err);
+  } finally {
+    isSyncing = false;
+  }
+};
+
+// ✅ run once (startup)
+safeSync();
+
+// ✅ run every 5 minutes
+setInterval(safeSync, 5 * 60 * 1000);
 
 // 🔑 Apply API key globally
 // app.use("/api", verifyApiKey);

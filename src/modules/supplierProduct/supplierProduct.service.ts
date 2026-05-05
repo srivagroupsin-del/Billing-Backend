@@ -1,7 +1,7 @@
 import axios from "axios";
 import { SupplierProductRepository } from "./supplierProduct.repository";
 import * as authRepo from "../../modules/auth/auth.repository";
-import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
+import { getAuthHeaders } from "../../utils/getAuthHeaders";
 
 type SupplierProductInput = {
   product_id: number;
@@ -84,7 +84,7 @@ export class SupplierProductService {
   async getAll(userId: number) {
     const user = await authRepo.getUserById(userId);
 
-    const headers = await getAuthHeadersAuth();
+    const headers = await getAuthHeaders();
 
     const supplierRes = await axios.get(
       "https://user.jobes24x7.com/api/suppliers",
@@ -120,13 +120,13 @@ export class SupplierProductService {
   async getMyProducts(userId: number, supplierId: number) {
     const user = await authRepo.getUserById(userId);
 
-      const headers = await getAuthHeadersAuth();
+    const headers = await getAuthHeaders();
 
     const supplierRes = await axios.get(
       "https://user.jobes24x7.com/api/suppliers",
       {
         headers: {
-           ...headers,
+          ...headers,
           Authorization: `Bearer ${user.central_token}`,
         },
       },

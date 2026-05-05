@@ -1,7 +1,7 @@
 import * as repo from "./businessCategoryGroup.repository";
 import { getUserById } from "../auth/auth.repository";
 import axios from "axios";
-import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
+import { getAuthHeaders } from "../../utils/getAuthHeaders";
 
 export const getBusinessCategoryGroups = async (
   businessId: number,
@@ -23,12 +23,12 @@ export const getBusinessCategoryGroups = async (
   }
 
   try {
-    const headers = await getAuthHeadersAuth();
+    const headers = await getAuthHeaders();
     const response = await axios.get(
       `https://user.jobes24x7.com/api/business-cre/main/${user.user_id}`,
       {
         headers: {
-           ...headers,
+          ...headers,
           Authorization: `Bearer ${user.central_token}`,
           Accept: "application/json",
         },

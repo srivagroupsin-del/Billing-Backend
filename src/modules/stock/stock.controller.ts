@@ -68,8 +68,6 @@ export class StockController {
   };
 
   getStockById = async (req: AuthRequest, res: Response) => {
-    const userId = req.user!.id;
-
     const businessId = req.user?.business_id;
 
     if (!businessId)

@@ -88,10 +88,29 @@ export const getActiveKey = async (
      WHERE service_name = ?
        AND platform_type = ?
        AND is_active = 1
-       AND expires_at > NOW()
+       AND expires_at > UTC_TIMESTAMP()
      LIMIT 1`,
     [service_name, platform_type],
   );
 
   return rows[0];
+};
+
+export const upsertApiKey = async (
+  service_name: string,
+  platform_type: string,
+  access_token: string,
+  expires_at: string,
+) => {
+  await apiDb.query(
+    `INSERT INTO api_keys 
+     (service_name, platform_type, access_token, expires_at, is_active)
+     VALUES (?, ?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE 
+       access_token = VALUES(access_token),
+       expires_at = VALUES(expires_at),
+       is_active = 1,
+       updated_at = NOW()`,
+    [service_name, platform_type, access_token, expires_at],
+  );
 };

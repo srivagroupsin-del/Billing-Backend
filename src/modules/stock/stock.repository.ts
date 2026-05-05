@@ -75,19 +75,23 @@ export class StockRepository {
       const variantRowId = row[0].id;
       variantMap[v.variant_id] = variantRowId;
 
+      console.log("VARIANT:", v.variant_id);
+      console.log("STOCK TYPES:", v.stock_types);
+
       // 🔥 UPSERT STOCK TYPES ALSO
       if (v.stock_types?.length) {
         for (const t of v.stock_types) {
+          const variantRowId = variantMap[v.variant_id];
+
           await conn.execute(
-            `
-          INSERT INTO product_stock_types
-          (stock_id, variant_id, stock_type_id, qty)
-          VALUES (?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-            qty = VALUES(qty),
-            is_deleted = 0
-        `,
-            [stockId, v.variant_id, t.stock_type_id, t.qty || 0],
+            `INSERT INTO product_stock_types
+              (stock_id, variant_id, stock_type_id, qty)
+              VALUES (?, ?, ?, ?)
+              ON DUPLICATE KEY UPDATE
+                qty = VALUES(qty),
+                is_deleted = 0
+            `,
+            [stockId, variantRowId, t.stock_type_id, t.qty || 0],
           );
         }
       }

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as service from "./apiKey.service";
 
-// ➕ CREATE / UPDATE
+// ➕ CREATE / UPDATE (optional admin)
 export const createOrUpdateApiKey = async (req: Request, res: Response) => {
   try {
     const result = await service.createOrUpdate(req.body);
@@ -15,15 +15,29 @@ export const createOrUpdateApiKey = async (req: Request, res: Response) => {
   }
 };
 
+// 🔄 SYNC FROM CENTRAL SERVICE
+export const syncRegistry = async (_: Request, res: Response) => {
+  try {
+    await service.syncFromRegistry();
+    return res.json({ success: true, message: "Registry synced" });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
 // 📥 GET ALL
 export const getAllApiKeys = async (_: Request, res: Response) => {
   try {
     const data = await service.getAll();
     return res.json({ success: true, data });
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Error fetching data" });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching data",
+    });
   }
 };
 
@@ -33,6 +47,7 @@ export const getApiKeyByService = async (req: Request, res: Response) => {
     const service_name = req.params.service_name as string;
     const platform_type = req.params.platform_type as string;
 
+    // ✅ validate first
     if (!service_name || !platform_type) {
       return res.status(400).json({
         success: false,
@@ -40,7 +55,11 @@ export const getApiKeyByService = async (req: Request, res: Response) => {
       });
     }
 
-    const data = await service.getOne(service_name, platform_type);
+    // ✅ normalize
+    const data = await service.getOne(
+      service_name.toLowerCase(),
+      platform_type.toUpperCase(),
+    );
 
     if (!data) {
       return res.status(404).json({
@@ -53,7 +72,7 @@ export const getApiKeyByService = async (req: Request, res: Response) => {
       success: true,
       data,
     });
-  } catch (err) {
+  } catch {
     return res.status(500).json({
       success: false,
       message: "Error fetching data",
@@ -66,10 +85,11 @@ export const getApiKeyLogs = async (_: Request, res: Response) => {
   try {
     const data = await service.getLogs();
     return res.json({ success: true, data });
-  } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Error fetching logs" });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching logs",
+    });
   }
 };
 
@@ -79,11 +99,19 @@ export const getPublicApiKey = async (req: Request, res: Response) => {
     const service_name = req.query.service_name as string;
     const platform_type = req.query.platform_type as string;
 
+    // ✅ validation
+    if (!service_name || !platform_type) {
+      return res.status(400).json({
+        success: false,
+        message: "service_name and platform_type required",
+      });
+    }
+
     const data = await service.getActiveApiKey(service_name, platform_type);
 
     return res.json({
       success: true,
-      api_key: data.access_token, // 👈 IMPORTANT CHANGE
+      api_key: data.access_token,
     });
   } catch (err: any) {
     return res.status(404).json({

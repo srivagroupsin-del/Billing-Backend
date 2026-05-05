@@ -2,7 +2,7 @@ import axios from "axios";
 import pool from "../../config/db";
 import { StockRepository } from "./stock.repository";
 import * as authRepo from "../../modules/auth/auth.repository";
-import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
+import { getAuthHeaders } from "../../utils/getAuthHeaders";
 
 export class StockService {
   private repo = new StockRepository();
@@ -120,7 +120,7 @@ export class StockService {
     if (!user?.central_token) {
       throw new Error("Central token missing");
     }
-    const headers = await getAuthHeadersAuth();
+    const headers = await getAuthHeaders();
 
     const supplierRes = await axios.get(
       "https://user.jobes24x7.com/api/suppliers",
@@ -248,6 +248,10 @@ export class StockService {
         (sum: number, t: any) => sum + (t.qty || 0),
         0,
       );
+
+      if (v.total_qty === 0) {
+        v.total_qty = v.qty;
+      }
     });
 
     // ✅ NEW: overall stock total
@@ -275,6 +279,11 @@ export class StockService {
 
       await this.repo.updateStock(conn, stockId, businessId, data);
 
+      // 🔥 DELETE OLD DATA FIRST
+      await this.repo.deleteVariants(conn, stockId);
+      await this.repo.deleteStockTypes(conn, stockId);
+
+      // 🔥 INSERT NEW DATA
       if (data.variants?.length) {
         await this.repo.saveVariants(conn, stockId, data.variants);
       }

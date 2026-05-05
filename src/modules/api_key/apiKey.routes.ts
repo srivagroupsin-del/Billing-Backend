@@ -5,16 +5,21 @@ import {
   getApiKeyByService,
   getApiKeyLogs,
   getPublicApiKey,
+  syncRegistry,
 } from "./apiKey.controller";
 import { verifyAdminAccess } from "../../middlewares/adminAuth.middleware";
 import { authMiddleware } from "../../middlewares/auth.middlewares";
 
 const router = express.Router();
 
-// 🔓 PUBLIC ROUTE (NO API KEY MIDDLEWARE)
 router.get("/public/api-key", getPublicApiKey);
 
+// optional admin
 router.post("/generate", verifyAdminAccess, createOrUpdateApiKey);
+
+// 🔥 MAIN SYNC
+router.post("/sync-registry", verifyAdminAccess, syncRegistry);
+
 router.get("/logs", verifyAdminAccess, getApiKeyLogs);
 
 router.get("/", authMiddleware, getAllApiKeys);

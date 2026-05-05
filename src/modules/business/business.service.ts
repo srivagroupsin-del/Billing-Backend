@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as authRepo from "../auth/auth.repository";
-import { getAuthHeadersAuth } from "../../utils/getAuthHeaders";
+import { getAuthHeaders } from "../../utils/getAuthHeaders";
 
 export const getBusinessList = async (userId: number) => {
   // 🔹 1. Get user from DB
@@ -23,7 +23,7 @@ export const getBusinessList = async (userId: number) => {
     throw new Error("Session expired. Please login again.");
   }
 
-  const headers = await getAuthHeadersAuth();
+  const headers = await getAuthHeaders();
 
   // 🔹 2. Call THEIR API
   const response = await axios.get(
@@ -60,7 +60,7 @@ export const getAllBusinesses = async (userId: number) => {
     throw new Error("Session expired. Please login again.");
   }
 
-  const headers = await getAuthHeadersAuth();
+  const headers = await getAuthHeaders();
 
   // 🔹 Call central API
   const response = await axios.get(

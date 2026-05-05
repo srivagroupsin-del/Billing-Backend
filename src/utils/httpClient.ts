@@ -16,7 +16,7 @@ const getApiKey = async (serviceName: string, platform: string) => {
      WHERE service_name=? 
      AND platform_type=? 
      AND is_active=1 
-     AND expires_at > NOW()
+     AND expires_at > UTC_TIMESTAMP()
      LIMIT 1`,
     [serviceName, platform],
   );
