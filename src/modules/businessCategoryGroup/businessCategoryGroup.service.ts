@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import * as repo from "./businessCategoryGroup.repository";
 import { getUserById } from "../auth/auth.repository";
 import axios from "axios";
@@ -11,15 +12,15 @@ export const getBusinessCategoryGroups = async (
   // 🔹 Get logged-in user
   const user = await getUserById(userId);
 
-  if (!user) throw new Error("User not found");
+  if (!user) throw new BusinessError("User not found")
 
   if (!user.central_token) {
-    throw new Error("Central token missing");
+    throw new BusinessError("Central token missing")
   }
 
   // 🔒 Expiry check
   if (new Date(user.central_token_expiry) < new Date()) {
-    throw new Error("Session expired. Please login again.");
+    throw new BusinessError("Session expired. Please login again.")
   }
 
   try {
@@ -38,7 +39,7 @@ export const getBusinessCategoryGroups = async (
     const apiData = response.data?.data;
 
     if (!apiData || apiData.result !== "Success") {
-      throw new Error("Failed to fetch business list");
+      throw new BusinessError("Failed to fetch business list")
     }
 
     const businesses = apiData.data || [];
@@ -57,7 +58,7 @@ export const getBusinessCategoryGroups = async (
       })),
     };
   } catch (err: any) {
-    console.log("❌ CENTRAL ERROR:", err.response?.data || err.message);
-    throw new Error("Central API failed");
+    console.log("CENTRAL ERROR:", err.response?.data || err.message);
+    throw new BusinessError("Central API failed")
   }
 };

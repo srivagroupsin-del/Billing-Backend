@@ -1,3 +1,6 @@
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response, Request } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { BusinessSetupService } from "./businessSetup.service";
@@ -18,18 +21,11 @@ export class BusinessSetupController {
 
             const id = await this.service.createSetup(businessId!);
 
-            res.status(201).json({
-                success: true,
-                message: "Business setup initialized",
-                data: { id }
-            });
+            successResponse({ res, data: { id }, message: "Business setup initialized", statusCode: 201 });
 
         } catch (error: any) {
 
-            res.status(500).json({
-                success: false,
-                message: error.message
-            });
+            throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
 
         }
 
@@ -43,18 +39,11 @@ export class BusinessSetupController {
 
             const setup = await this.service.getSetup(businessId!);
 
-            res.status(200).json({
-                success: true,
-                message: "Business setup fetched",
-                data: setup || {}
-            });
+            successResponse({ res, data: setup || {}, message: "Business setup fetched", statusCode: 200 });
 
         } catch (error: any) {
 
-            res.status(500).json({
-                success: false,
-                message: error.message
-            });
+            throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
 
         }
 
@@ -69,17 +58,11 @@ export class BusinessSetupController {
 
             await this.service.deleteSetup(Number(id), businessId!);
 
-            res.status(200).json({
-                success: true,
-                message: "Setup deleted"
-            });
+            successResponse({ res, message: "Setup deleted", statusCode: 200 });
 
         } catch (error: any) {
 
-            res.status(500).json({
-                success: false,
-                message: error.message
-            });
+            throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
 
         }
 
@@ -91,7 +74,7 @@ export class BusinessSetupController {
 
         await this.service.assignShopTypes(businessId!, req.body.shopTypeIds);
 
-        res.json({ success: true });
+        successResponse({ res });
 
     };
 
@@ -101,7 +84,7 @@ export class BusinessSetupController {
 
         await this.service.assignModuleItems(businessId!, req.body.moduleItemIds);
 
-        res.json({ success: true });
+        successResponse({ res });
 
     };
 
@@ -111,7 +94,7 @@ export class BusinessSetupController {
 
         await this.service.assignCategoryGroups(businessId!, req.body.categoryGroupIds);
 
-        res.json({ success: true });
+        successResponse({ res });
 
     };
 
@@ -121,7 +104,7 @@ export class BusinessSetupController {
 
         await this.service.assignCategories(businessId!, req.body.categoryIds);
 
-        res.json({ success: true });
+        successResponse({ res });
 
     };
 
@@ -131,7 +114,7 @@ export class BusinessSetupController {
 
         await this.service.assignBrands(businessId!, req.body.brandIds);
 
-        res.json({ success: true });
+        successResponse({ res });
 
     };
 
@@ -141,18 +124,11 @@ export class BusinessSetupController {
 
         const data = await this.service.getAllShopTypes();
 
-        res.status(200).json({
-            success: true,
-            message: "Shop types fetched",
-            data
-        });
+        successResponse({ res, data: data, message: "Shop types fetched", statusCode: 200 });
 
         } catch (error: any) {
 
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
 
         }
 
@@ -164,10 +140,7 @@ export class BusinessSetupController {
 
         await this.service.saveFullSetup(businessId!, req.body);
 
-        res.json({
-            success: true,
-            message: "Full setup saved"
-        });
+        successResponse({ res, message: "Full setup saved" });
 
     };
 

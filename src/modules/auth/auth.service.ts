@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import * as authRepo from "./auth.repository";
@@ -7,6 +8,7 @@ import { getAuthHeaders } from "../../utils/getAuthHeaders";
 export const login = async (email: string, password: string) => {
   try {
     const headers = await getAuthHeaders();
+
     // 🔹 Call central API
     const response = await axios.post(
       "https://user.jobes24x7.com/api/login/authenticate",
@@ -20,16 +22,16 @@ export const login = async (email: string, password: string) => {
     const apiData = response.data?.data;
 
     if (!apiData || apiData.result !== "Success") {
-      throw new Error("Invalid login");
+      throw new BusinessError("Invalid login");
     }
 
     if (!response.data || !response.data.data) {
-      throw new Error("Invalid response from central login");
+      throw new BusinessError("Invalid response from central login");
     }
 
     const userData = apiData.data;
     if (!userData?.email) {
-      throw new Error("Invalid user data from central API");
+      throw new BusinessError("Invalid user data from central API");
     }
 
     console.log("Login success for:", userData.email);
@@ -63,7 +65,7 @@ export const login = async (email: string, password: string) => {
       await authRepo.updateUserMainId(user.id, userData.user_main_id);
     }
 
-    // ✅ ALWAYS SAVE TOKEN (USE userId, NOT user.id)
+    //  ALWAYS SAVE TOKEN (USE userId, NOT user.id)
     await authRepo.updateCentralToken(userId, centralToken, expiry);
 
     // 🔹 Generate YOUR token
@@ -82,7 +84,7 @@ export const login = async (email: string, password: string) => {
     };
   } catch (err: any) {
     console.error(err.response?.data || err.message);
-    throw new Error("Login failed");
+    throw new BusinessError("Login failed");
   }
 };
 
@@ -98,7 +100,7 @@ export const selectBusiness = async (
   const exists = businesses.find((b: any) => b.id === businessId);
 
   if (!exists) {
-    throw new Error("Invalid business selection");
+    throw new BusinessError("Invalid business selection");
   }
 
   // 🔑 3. Generate BUSINESS TOKEN

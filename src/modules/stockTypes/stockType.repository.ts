@@ -6,8 +6,8 @@ export class StockTypeRepository {
 
     const [result]: any = await pool.execute(
       `INSERT INTO stock_type_master
-      (business_id,name)
-      VALUES (?,?)`,
+      (business_id, name)
+      VALUES (?, ?)`,
       [businessId, name],
     );
 
@@ -16,8 +16,11 @@ export class StockTypeRepository {
 
   async getStockTypes(businessId: number) {
     const [rows]: any = await pool.execute(
-      `SELECT * FROM stock_type_master
-       WHERE business_id=?`,
+      `SELECT *
+       FROM stock_type_master
+       WHERE business_id = ?
+       AND is_deleted = 0
+       ORDER BY id DESC`,
       [businessId],
     );
 
@@ -29,8 +32,10 @@ export class StockTypeRepository {
 
     const [result]: any = await pool.execute(
       `UPDATE stock_type_master
-       SET name=?
-       WHERE id=? AND business_id=?`,
+       SET name = ?
+       WHERE id = ?
+       AND business_id = ?
+       AND is_deleted = 0`,
       [name, id, businessId],
     );
 
@@ -39,13 +44,16 @@ export class StockTypeRepository {
 
   async deleteStockType(id: number, businessId: number) {
     const [result]: any = await pool.execute(
-      `DELETE FROM stock_type_master
-       WHERE id=? AND business_id=?`,
+      `UPDATE stock_type_master
+       SET is_deleted = 1
+       WHERE id = ?
+       AND business_id = ?`,
       [id, businessId],
     );
 
     return result.affectedRows;
   }
+
   async getStockTypesByStock(businessId: number, stockId: number) {
     const [rows]: any = await pool.execute(
       `SELECT 
@@ -53,13 +61,14 @@ export class StockTypeRepository {
         stm.name,
         pst.qty AS available_qty
 
-     FROM product_stock_types pst
+       FROM product_stock_types pst
 
-     JOIN stock_type_master stm 
-       ON stm.id = pst.stock_type_id
+       JOIN stock_type_master stm
+         ON stm.id = pst.stock_type_id
+        AND stm.is_deleted = 0
 
-     WHERE pst.stock_id = ?
-       AND stm.business_id = ?`,
+       WHERE pst.stock_id = ?
+         AND stm.business_id = ?`,
       [stockId, businessId],
     );
 

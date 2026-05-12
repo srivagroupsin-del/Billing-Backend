@@ -1,3 +1,6 @@
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { StockTypeService } from "./stockType.service";
@@ -10,11 +13,7 @@ export class StockTypeController {
 
     const id = await this.service.createStockType(businessId!, req.body);
 
-    res.json({
-      success: true,
-      message: "Stock type created",
-      data: { id },
-    });
+    successResponse({ res, data: { id }, message: "Stock type created" });
   };
 
   getStockTypes = async (req: AuthRequest, res: Response) => {
@@ -22,10 +21,7 @@ export class StockTypeController {
 
     const data = await this.service.getStockTypes(businessId!);
 
-    res.json({
-      success: true,
-      data,
-    });
+    successResponse({ res, data: data });
   };
 
   updateStockType = async (req: AuthRequest, res: Response) => {
@@ -37,10 +33,7 @@ export class StockTypeController {
       req.body,
     );
 
-    res.json({
-      success: true,
-      message: "Stock type updated",
-    });
+    successResponse({ res, message: "Stock type updated" });
   };
 
   deleteStockType = async (req: AuthRequest, res: Response) => {
@@ -48,10 +41,7 @@ export class StockTypeController {
 
     await this.service.deleteStockType(Number(req.params.id), businessId!);
 
-    res.json({
-      success: true,
-      message: "Stock type deleted",
-    });
+    successResponse({ res, message: "Stock type deleted" });
   };
 
   getStockTypesByStock = async (req: AuthRequest, res: Response) => {
@@ -60,23 +50,14 @@ export class StockTypeController {
       const stockId = Number(req.query.stock_id);
 
       if (!businessId) {
-        return res.status(400).json({
-          success: false,
-          message: "Business ID missing",
-        });
+        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
       }
 
       const data = await this.service.getStockTypesByStock(businessId, stockId);
 
-      res.json({
-        success: true,
-        data,
-      });
+      successResponse({ res, data: data });
     } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 }

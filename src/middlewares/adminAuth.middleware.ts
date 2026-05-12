@@ -1,9 +1,12 @@
+import { catchAsync } from "../utils/catchAsync";
+import { BusinessError } from "../utils/appError";
+import { ErrorCodes } from "../utils/errorCodes";
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import stringify from "fast-json-stable-stringify";
 
 const ADMIN_SECRET = process.env.API_KEY_ADMIN_SECRET || "MY_SECRET_KEY";
-export const verifyAdminAccess = (
+export const verifyAdminAccess = catchAsync((
   req: Request,
   res: Response,
   next: NextFunction,
@@ -19,10 +22,7 @@ export const verifyAdminAccess = (
     const adminSecret = req.header("x-admin-secret");
 
     if (!adminSecret || adminSecret !== ADMIN_SECRET) {
-      return res.status(403).json({
-        success: false,
-        message: "Invalid admin secret",
-      });
+      throw new BusinessError("Invalid admin secret", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     // 🔐 3. HMAC SIGNATURE
@@ -30,10 +30,7 @@ export const verifyAdminAccess = (
     const timestamp = req.header("x-timestamp");
 
     if (!signature || !timestamp) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing signature headers",
-      });
+      throw new BusinessError("Missing signature headers", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     // ⏱️ Prevent replay attack (5 min window)
@@ -41,10 +38,7 @@ export const verifyAdminAccess = (
     const requestTime = parseInt(timestamp);
 
     if (Math.abs(now - requestTime) > 5 * 60 * 1000) {
-      return res.status(403).json({
-        success: false,
-        message: "Request expired",
-      });
+      throw new BusinessError("Request expired", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     // 🔑 Create expected signature
@@ -56,10 +50,7 @@ export const verifyAdminAccess = (
       .digest("hex");
 
     if (signature !== expectedSignature) {
-      return res.status(403).json({
-        success: false,
-        message: "Invalid signature",
-      });
+      throw new BusinessError("Invalid signature", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     console.log("ENV SECRET:", process.env.API_KEY_ADMIN_SECRET);
@@ -81,9 +72,6 @@ export const verifyAdminAccess = (
 
     next();
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: "Security validation failed",
-    });
+    throw new BusinessError("Security validation failed", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
-};
+});

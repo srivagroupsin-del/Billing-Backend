@@ -1,3 +1,6 @@
+import { BusinessError } from "../../utils/appError";
+import { successResponse } from "../../utils/response";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { SalesService } from "./sales.service";
@@ -13,7 +16,7 @@ export class SalesController {
   // 🔥 COMMON USER VALIDATION
   private getUser(req: AuthRequest): SafeUser {
     if (!req.user || req.user.business_id === undefined) {
-      throw new Error("Unauthorized");
+      throw new BusinessError("Unauthorized")
     }
 
     return {
@@ -31,10 +34,7 @@ export class SalesController {
           ? 400
           : 500;
 
-    return res.status(status).json({
-      success: false,
-      message: err.message || "Something went wrong",
-    });
+    throw new BusinessError(err.message || "Something went wrong", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
 
   // 🔹 CREATE BILL
@@ -44,11 +44,7 @@ export class SalesController {
 
       const result = await this.service.createBill(user.business_id, req.body);
 
-      res.json({
-        success: true,
-        message: "Bill created successfully",
-        data: result,
-      });
+      successResponse({ res, data: result, message: "Bill created successfully" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -60,14 +56,11 @@ export class SalesController {
       const user = this.getUser(req);
 
       const billId = Number(req.params.id);
-      if (!billId) throw new Error("Invalid Bill ID");
+      if (!billId) throw new BusinessError("Invalid Bill ID")
 
       const bill = await this.service.getBillById(user.business_id, billId);
 
-      res.json({
-        success: true,
-        data: bill,
-      });
+      successResponse({ res, data: bill });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -82,17 +75,14 @@ export class SalesController {
         ? req.params.billNumber[0]
         : req.params.billNumber;
 
-      if (!billNumber) throw new Error("Bill number required");
+      if (!billNumber) throw new BusinessError("Bill number required")
 
       const bill = await this.service.getBillByNumber(
         user.business_id,
         billNumber,
       );
 
-      res.json({
-        success: true,
-        data: bill,
-      });
+      successResponse({ res, data: bill });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -105,10 +95,7 @@ export class SalesController {
 
       const bills = await this.service.getBillsByBusiness(user.business_id);
 
-      res.json({
-        success: true,
-        data: bills,
-      });
+      successResponse({ res, data: bills });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -120,17 +107,14 @@ export class SalesController {
       const user = this.getUser(req);
 
       const billId = Number(req.params.id);
-      if (!billId) throw new Error("Invalid Bill ID");
+      if (!billId) throw new BusinessError("Invalid Bill ID")
 
       const data = await this.service.getFullBillDetails(
         user.business_id,
         billId,
       );
 
-      res.json({
-        success: true,
-        data,
-      });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }

@@ -1,3 +1,6 @@
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { StockService } from "./stock.service";
@@ -10,22 +13,13 @@ export class StockController {
       const businessId = req.user?.business_id;
 
       if (!businessId)
-        return res
-          .status(400)
-          .json({ success: false, message: "Business ID missing", data: {} });
+        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
 
       const data = await this.service.saveStock(businessId!, req.body);
 
-      res.json({
-        success: true,
-        message: "Stock saved successfully",
-        data,
-      });
+      successResponse({ res, data: data, message: "Stock saved successfully" });
     } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -40,15 +34,9 @@ export class StockController {
         req.body,
       );
 
-      res.json({
-        success: true,
-        message: "Storage assigned",
-      });
+      successResponse({ res, message: "Storage assigned" });
     } catch (error: any) {
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
+      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -58,51 +46,43 @@ export class StockController {
     const businessId = req.user?.business_id;
 
     if (!businessId)
-      return res
-        .status(400)
-        .json({ success: false, message: "Business ID missing", data: {} });
+      throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
 
     const data = await this.service.getStocks(userId, businessId!);
 
-    res.json({ success: true, data });
+    successResponse({ res, data: data });
   };
 
   getStockById = async (req: AuthRequest, res: Response) => {
     const businessId = req.user?.business_id;
 
     if (!businessId)
-      return res
-        .status(400)
-        .json({ success: false, message: "Business ID missing", data: {} });
+      throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
 
     const data = await this.service.getStockById(
       Number(req.params.id),
       businessId!,
     );
 
-    res.json({ success: true, data });
+    successResponse({ res, data: data });
   };
 
   deleteStock = async (req: AuthRequest, res: Response) => {
     const businessId = req.user?.business_id;
 
     if (!businessId)
-      return res
-        .status(400)
-        .json({ success: false, message: "Business ID missing", data: {} });
+      throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
 
     await this.service.deleteStock(Number(req.params.id), businessId!);
 
-    res.json({ success: true, message: "Stock deleted" });
+    successResponse({ res, message: "Stock deleted" });
   };
 
   updateStock = async (req: AuthRequest, res: Response) => {
     try {
       const businessId = req.user?.business_id;
       if (!businessId)
-        return res
-          .status(400)
-          .json({ success: false, message: "Business ID missing", data: {} });
+        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
 
       const stockId = Number(req.params.id);
 
@@ -112,16 +92,9 @@ export class StockController {
         req.body,
       );
 
-      res.json({
-        success: true,
-        message: "Stock updated successfully",
-        data,
-      });
+      successResponse({ res, data: data, message: "Stock updated successfully" });
     } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -135,15 +108,9 @@ export class StockController {
         businessId!,
       );
 
-      res.json({
-        success: true,
-        data,
-      });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -154,15 +121,9 @@ export class StockController {
 
       await this.service.deleteAssignedLocations(Number(stockId), businessId!);
 
-      res.json({
-        success: true,
-        message: "All storage assignments removed",
-      });
+      successResponse({ res, message: "All storage assignments removed" });
     } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -172,9 +133,9 @@ export class StockController {
 
       await this.service.updateSingleLocation(req.body, businessId!);
 
-      res.json({ success: true });
+      successResponse({ res });
     } catch (err: any) {
-      res.status(400).json({ success: false, message: err.message });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -183,9 +144,9 @@ export class StockController {
       const businessId = req.user?.business_id;
       await this.service.deleteSingleLocation(req.body, businessId!);
 
-      res.json({ success: true });
+      successResponse({ res });
     } catch (err: any) {
-      res.status(400).json({ success: false, message: err.message });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 }

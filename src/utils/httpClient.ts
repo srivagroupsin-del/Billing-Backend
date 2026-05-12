@@ -1,3 +1,4 @@
+import { BusinessError } from ".//appError";
 import axios from "axios";
 import apiDb from "../config/api_key_validation";
 
@@ -22,7 +23,7 @@ const getApiKey = async (serviceName: string, platform: string) => {
   );
 
   if (!rows || rows.length === 0) {
-    throw new Error(`No active API key for ${serviceName}`);
+    throw new BusinessError(`No active API key for ${serviceName}`)
   }
 
   API_KEY_CACHE[cacheKey] = rows[0].api_key;

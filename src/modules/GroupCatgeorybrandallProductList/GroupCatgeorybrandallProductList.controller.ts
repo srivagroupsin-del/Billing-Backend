@@ -1,19 +1,20 @@
+import { catchAsync } from "../../utils/catchAsync";
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import * as service from "./GroupCatgeorybrandallProductList.service";
 
-export const getCategoryGroupMappings = async (
+export const getCategoryGroupMappings = catchAsync(async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   try {
     const raw = req.query.category_group_id;
 
     if (!raw) {
-      return res.status(400).json({
-        success: false,
-        message: "category_group_id is required",
-      });
+      throw new BusinessError("category_group_id is required", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     // Convert to array safely
@@ -29,42 +30,30 @@ export const getCategoryGroupMappings = async (
     const invalid = ids.some((id) => isNaN(id) || id <= 0);
 
     if (invalid || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid category_group_id(s) required",
-      });
+      throw new BusinessError("Valid category_group_id(s) required", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     const data = await service.getCategoryGroupMappings(ids);
 
-    return res.json({
-      success: true,
-      data,
-    });
+    return successResponse({ res, data: data });
   } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Something went wrong",
-    });
+    throw new BusinessError(err.message || "Something went wrong", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
-};
+});
 
 /**
  * GET Category → Brand Structure
  * ?category_group_id=1,2
  */
-export const getCategoryBrandStructure = async (
+export const getCategoryBrandStructure = catchAsync(async (
   req: AuthRequest,
-  res: Response
+  res: Response,
 ) => {
   try {
     const raw = req.query.category_group_id;
 
     if (!raw) {
-      return res.status(400).json({
-        success: false,
-        message: "category_group_id is required",
-      });
+      throw new BusinessError("category_group_id is required", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     let ids: number[] = [];
@@ -78,67 +67,65 @@ export const getCategoryBrandStructure = async (
     const invalid = ids.some((id) => isNaN(id) || id <= 0);
 
     if (invalid || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid category_group_id(s) required",
-      });
+      throw new BusinessError("Valid category_group_id(s) required", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     const data = await service.getCategoryBrandStructure(ids);
 
-    return res.json({
-      success: true,
-      data,
-    });
-
+    return successResponse({ res, data: data });
   } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Something went wrong",
-    });
+    throw new BusinessError(err.message || "Something went wrong", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
-};
+});
 
 /**
  * GET Brand → Products
  * /brand-products/5
  */
-export const getBrandWithProducts = async (
-  req: AuthRequest,
-  res: Response
-) => {
+export const getBrandWithProducts = catchAsync(async (req: AuthRequest, res: Response) => {
   try {
-
     const { category_id, brand_id } = req.params;
 
     const categoryId = Number(category_id);
     const brandId = Number(brand_id);
 
     if (!categoryId || !brandId || isNaN(categoryId) || isNaN(brandId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid category_id and brand_id are required",
-      });
+      throw new BusinessError("Valid category_id and brand_id are required", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
     const data = await service.getBrandWithProducts(categoryId, brandId);
 
     if (!data) {
-      return res.status(404).json({
-        success: false,
-        message: "Brand not found or no products available",
-      });
+      throw new BusinessError("Brand not found or no products available", ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
 
-    return res.json({
-      success: true,
-      data,
-    });
-
+    return successResponse({ res, data: data });
   } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      message: err.message || "Something went wrong",
-    });
+    throw new BusinessError(err.message || "Something went wrong", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
-};
+});
+
+export const getProductDynamicFields = catchAsync(async (
+  req: AuthRequest,
+  res: Response,
+) => {
+  try {
+    const productId = Number(req.params.product_id);
+    const categoryId = Number(req.params.category_id);
+    const brandId = Number(req.params.brand_id);
+
+    if (!productId) {
+      throw new BusinessError("Valid product_id required", ErrorCodes.BUSINESS_RULE_VIOLATION);
+    }
+
+    const data = await service.fetchProductDynamicFields(
+      productId,
+      categoryId,
+      brandId,
+    );
+
+    return successResponse({ res, data: data });
+  } catch (err: any) {
+    throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
+  }
+});

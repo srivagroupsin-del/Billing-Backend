@@ -1,3 +1,6 @@
+import { BusinessError } from "../../utils/appError";
+import { successResponse } from "../../utils/response";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { SupplierRequestService } from "./supplierRequest.service";
@@ -13,7 +16,7 @@ export class SupplierRequestController {
   // 🔥 AUTH HELPER (TYPE-SAFE)
   private getUser(req: AuthRequest): SafeUser {
     if (!req.user || req.user.business_id === undefined) {
-      throw new Error("Unauthorized");
+      throw new BusinessError("Unauthorized")
     }
 
     return {
@@ -26,10 +29,7 @@ export class SupplierRequestController {
   private handleError(res: Response, err: any) {
     const status = err.message === "Unauthorized" ? 401 : 400;
 
-    return res.status(status).json({
-      success: false,
-      message: err.message || "Something went wrong",
-    });
+    throw new BusinessError(err.message || "Something went wrong", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
 
   // 🔹 CREATE
@@ -43,11 +43,7 @@ export class SupplierRequestController {
         user.business_id,
       );
 
-      res.json({
-        success: true,
-        message: "Request created",
-        data,
-      });
+      successResponse({ res, data: data, message: "Request created" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -60,7 +56,7 @@ export class SupplierRequestController {
 
       const data = await this.service.getAll(user.business_id, user.id);
 
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -73,7 +69,7 @@ export class SupplierRequestController {
 
       const data = await this.service.getReceived(user.business_id, user.id);
 
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -85,11 +81,11 @@ export class SupplierRequestController {
       const user = this.getUser(req);
 
       const id = Number(req.params.id);
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       const data = await this.service.getById(id, user.business_id);
 
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -101,7 +97,7 @@ export class SupplierRequestController {
       const user = this.getUser(req);
 
       const id = Number(req.params.id);
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       const data = await this.service.update(
         id,
@@ -110,11 +106,7 @@ export class SupplierRequestController {
         user.business_id,
       );
 
-      res.json({
-        success: true,
-        message: "Updated",
-        data,
-      });
+      successResponse({ res, data: data, message: "Updated" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -126,7 +118,7 @@ export class SupplierRequestController {
       const user = this.getUser(req);
 
       const id = Number(req.params.id);
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       const { status, partial_reason } = req.body;
 
@@ -138,11 +130,7 @@ export class SupplierRequestController {
         user.business_id,
       );
 
-      res.json({
-        success: true,
-        message: "Status updated",
-        data,
-      });
+      successResponse({ res, data: data, message: "Status updated" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -154,14 +142,11 @@ export class SupplierRequestController {
       this.getUser(req);
 
       const id = Number(req.params.id);
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       await this.service.softDelete(id);
 
-      res.json({
-        success: true,
-        message: "Deleted",
-      });
+      successResponse({ res, message: "Deleted" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -175,16 +160,13 @@ export class SupplierRequestController {
       const itemId = Number(req.params.itemId);
       const requestId = Number(req.query.requestId);
 
-      if (!itemId) throw new Error("Invalid itemId");
-      if (!requestId) throw new Error("requestId is required");
+      if (!itemId) throw new BusinessError("Invalid itemId")
+      if (!requestId) throw new BusinessError("requestId is required")
 
       // 🔥 PASS businessId
       await this.service.deleteItem(itemId, requestId, user.business_id);
 
-      res.json({
-        success: true,
-        message: "Item deleted",
-      });
+      successResponse({ res, message: "Item deleted" });
     } catch (err: any) {
       this.handleError(res, err);
     }

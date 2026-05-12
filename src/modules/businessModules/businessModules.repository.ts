@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 
 export class BusinessModulesRepository {
@@ -14,7 +15,7 @@ export class BusinessModulesRepository {
       return result.insertId;
     } catch (err: any) {
       if (err.code === "ER_DUP_ENTRY") {
-        throw new Error("Module already exists for this business");
+        throw new BusinessError("Module already exists for this business")
       }
       throw err;
     }
@@ -41,7 +42,7 @@ export class BusinessModulesRepository {
       return result.affectedRows;
     } catch (err: any) {
       if (err.code === "ER_DUP_ENTRY") {
-        throw new Error("Module already exists for this business");
+        throw new BusinessError("Module already exists for this business")
       }
       throw err;
     }

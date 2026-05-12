@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import axios from "axios";
 import * as authRepo from "../../modules/auth/auth.repository";
 import { getAuthHeaders } from "../../utils/getAuthHeaders";
@@ -8,11 +9,11 @@ export class SupplierService {
   private async getHeaders(userId: number) {
     const user = await authRepo.getUserById(userId);
 
-    if (!user) throw new Error("User not found");
-    if (!user.central_token) throw new Error("Central token missing");
+    if (!user) throw new BusinessError("User not found");
+    if (!user.central_token) throw new BusinessError("Central token missing");
 
     if (new Date(user.central_token_expiry) < new Date()) {
-      throw new Error("Session expired");
+      throw new BusinessError("Session expired");
     }
 
     const apiHeaders = await getAuthHeaders();
@@ -24,7 +25,7 @@ export class SupplierService {
     };
   }
 
-  // ✅ CREATE SUPPLIER
+  //  CREATE SUPPLIER
   async createSupplier(userId: number, payload: any) {
     const headers = await this.getHeaders(userId);
 
@@ -35,7 +36,7 @@ export class SupplierService {
     return res.data;
   }
 
-  // ✅ GET ALL SUPPLIERS
+  //  GET ALL SUPPLIERS
   async getAllSuppliers(userId: number) {
     const headers = await this.getHeaders(userId);
 
@@ -44,7 +45,7 @@ export class SupplierService {
     return res.data;
   }
 
-  // ✅ GET SINGLE SUPPLIER
+  //  GET SINGLE SUPPLIER
   async getSupplierById(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
@@ -53,7 +54,7 @@ export class SupplierService {
     return res.data;
   }
 
-  // ✅ FULL DETAILS
+  //  FULL DETAILS
   async getSupplierFull(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 
@@ -62,7 +63,7 @@ export class SupplierService {
     return res.data;
   }
 
-  // ✅ UPDATE
+  //  UPDATE
   async updateSupplier(userId: number, id: number, payload: any) {
     const headers = await this.getHeaders(userId);
 
@@ -73,7 +74,9 @@ export class SupplierService {
     return res.data;
   }
 
-  // ✅ DELETE
+  // 22AAABA0010A1Z5
+
+  //  DELETE
   async deleteSupplier(userId: number, id: number) {
     const headers = await this.getHeaders(userId);
 

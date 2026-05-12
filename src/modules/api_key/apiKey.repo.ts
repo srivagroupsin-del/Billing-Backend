@@ -77,7 +77,7 @@ export const getLogs = async () => {
   return rows;
 };
 
-// ✅ GET ACTIVE TOKEN
+//  GET ACTIVE TOKEN
 export const getActiveKey = async (
   service_name: string,
   platform_type: string,

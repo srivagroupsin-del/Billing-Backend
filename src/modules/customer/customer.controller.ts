@@ -1,3 +1,6 @@
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { CustomerService } from "./customer.service";
@@ -5,88 +8,83 @@ import { CustomerService } from "./customer.service";
 export class CustomerController {
   private service = new CustomerService();
 
-  // ✅ GET CUSTOMER BY PHONE
+  //  GET CUSTOMER BY PHONE
   getCustomerByPhone = async (req: AuthRequest, res: Response) => {
     try {
       if (!req.user) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Unauthorized" });
+        throw new BusinessError(
+          "Unauthorized",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const businessId = req.user.business_id;
       if (!businessId) {
-        return res.status(400).json({
-          success: false,
-          message: "Business ID missing",
-          data: {},
-        });
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const phone = req.params.phone as string;
       if (!phone) {
-        return res.status(400).json({
-          success: false,
-          message: "Phone number required",
-        });
+        throw new BusinessError(
+          "Phone number required",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const customer = await this.service.getCustomerByPhone(businessId, phone);
 
-      return res.json({
-        success: true,
-        exists: !!customer,
-        data: customer || {},
-      });
+      return successResponse({ res, data: customer || {} });
     } catch (error: any) {
-      console.error("❌ getCustomerByPhone:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+      console.error("getCustomerByPhone:", error);
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 
-  // ✅ GET CUSTOMERS BY BUSINESS
+  //  GET CUSTOMERS BY BUSINESS
   getCustomerBybusiness = async (req: AuthRequest, res: Response) => {
     try {
       if (!req.user) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Unauthorized" });
+        throw new BusinessError(
+          "Unauthorized",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const businessId = req.user.business_id;
 
       if (!businessId) {
-        return res.status(400).json({
-          success: false,
-          message: "Business ID missing",
-        });
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const customers = await this.service.getCustomerBybusiness(businessId);
 
-      res.json({
-        success: true,
-        data: customers,
-      });
+      successResponse({ res, data: customers });
     } catch (error: any) {
-      console.error("❌ getCustomerBybusiness:", error);
-      res.status(500).json({
-        success: false,
-        message: error.message,
-      });
+      console.error("getCustomerBybusiness:", error);
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 
-  // ✅ CENTRAL CUSTOMER
+  //  CENTRAL CUSTOMER
   getCustomerFromCentral = async (req: AuthRequest, res: Response) => {
     try {
       if (!req.user) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Unauthorized" });
+        throw new BusinessError(
+          "Unauthorized",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const userId = req.user.id;
@@ -96,25 +94,18 @@ export class CustomerController {
         : req.params.phone;
 
       if (!phone) {
-        return res.status(400).json({
-          success: false,
-          message: "Phone is required",
-        });
+        throw new BusinessError(
+          "Phone is required",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
       }
 
       const data = await this.service.getCustomerFromCentral(userId, phone);
 
-      return res.json({
-        success: true,
-        exists: !!data,
-        data: data || {},
-      });
+      return successResponse({ res, data: data || {} });
     } catch (err: any) {
-      console.error("❌ getCustomerFromCentral:", err);
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      console.error("getCustomerFromCentral:", err);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -124,15 +115,9 @@ export class CustomerController {
       const search = (req.query.search as string) || "";
       const result = await this.service.getAllBusinesses(userId, search);
 
-      res.json({
-        success: true,
-        data: result,
-      });
+      successResponse({ res, data: result });
     } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -142,15 +127,9 @@ export class CustomerController {
       const search = (req.query.search as string) || "";
       const result = await this.service.getAllUsers(userId, search);
 
-      res.json({
-        success: true,
-        data: result,
-      });
+      successResponse({ res, data: result });
     } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 }

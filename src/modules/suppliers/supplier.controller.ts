@@ -1,3 +1,6 @@
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { SupplierService } from "./supplier.service";
@@ -12,27 +15,26 @@ export class SupplierController {
   create = async (req: AuthRequest, res: Response) => {
     try {
       const data = await this.service.createSupplier(req.user!.id, req.body);
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       const apiError = err?.response?.data;
 
-      console.error("❌ CREATE SUPPLIER:", apiError || err.message);
+      console.error("CREATE SUPPLIER:", apiError || err.message);
 
-      return res.status(apiError?.data?.code || 500).json({
-        success: false,
-        message:
-          apiError?.data?.message || err.message || "Something went wrong",
-      });
+      throw new BusinessError(
+        apiError?.data?.message || err.message || "Something went wrong",
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 
   getAll = async (req: AuthRequest, res: Response) => {
     try {
       const data = await this.service.getAllSuppliers(req.user!.id);
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ GET SUPPLIERS:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" GET SUPPLIERS:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -42,10 +44,10 @@ export class SupplierController {
         req.user!.id,
         Number(req.params.id),
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ GET ONE SUPPLIER:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" GET ONE SUPPLIER:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -55,10 +57,10 @@ export class SupplierController {
         req.user!.id,
         Number(req.params.id),
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ GET FULL SUPPLIER:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" GET FULL SUPPLIER:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -69,10 +71,10 @@ export class SupplierController {
         Number(req.params.id),
         req.body,
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ UPDATE SUPPLIER:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" UPDATE SUPPLIER:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -82,10 +84,10 @@ export class SupplierController {
         req.user!.id,
         Number(req.params.id),
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ DELETE SUPPLIER:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" DELETE SUPPLIER:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -96,10 +98,10 @@ export class SupplierController {
   createBranch = async (req: AuthRequest, res: Response) => {
     try {
       const data = await this.service.createBranch(req.user!.id, req.body);
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ CREATE BRANCH:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" CREATE BRANCH:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -109,10 +111,10 @@ export class SupplierController {
         req.user!.id,
         Number(req.params.supplierId),
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ GET BRANCHES:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" GET BRANCHES:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -123,10 +125,10 @@ export class SupplierController {
         Number(req.params.id),
         req.body,
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ UPDATE BRANCH:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" UPDATE BRANCH:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -136,10 +138,10 @@ export class SupplierController {
         req.user!.id,
         Number(req.params.id),
       );
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      console.error("❌ DELETE BRANCH:", err.message);
-      res.status(500).json({ success: false, message: err.message });
+      console.error(" DELETE BRANCH:", err.message);
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 }

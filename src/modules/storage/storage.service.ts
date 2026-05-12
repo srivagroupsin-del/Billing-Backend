@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 import { StorageRepository } from "./storage.repository";
 
@@ -196,7 +197,7 @@ export class StorageService {
     const level = await this.repository.getStructureLevelById(id, businessId);
 
     if (!level) {
-      throw new Error("Structure level not found");
+      throw new BusinessError("Structure level not found");
     }
 
     if (data.name !== undefined && data.name !== level.name) {
@@ -263,7 +264,7 @@ export class StorageService {
 
   async deleteStructureLevel(id: number, businessId: number) {
     const level = await this.repository.getStructureLevelById(id, businessId);
-    if (!level) throw new Error("Structure level not found");
+    if (!level) throw new BusinessError("Structure level not found");
 
     const hasLocations = await this.repository.hasLocations(id);
     if (hasLocations) {
@@ -299,7 +300,7 @@ export class StorageService {
     data = this.trimStrings(data);
     data.name = this.validateName(data.name);
 
-    // ✅ STEP 1: Normalize code
+    //  STEP 1: Normalize code
     if (data.code !== undefined) {
       if (typeof data.code === "string") {
         data.code = data.code.trim();
@@ -312,7 +313,7 @@ export class StorageService {
 
     const { storage_type_id, level_id } = data;
 
-    // ✅ STEP 2: Load structure levels
+    //  STEP 2: Load structure levels
     const levels = await this.repository.getStructureLevels(
       storage_type_id,
       businessId,
@@ -321,10 +322,10 @@ export class StorageService {
     const level = levels.find((l: any) => l.id === level_id);
 
     if (!level) {
-      throw new Error("Invalid structure level");
+      throw new BusinessError("Invalid structure level");
     }
 
-    // ✅ STEP 3: Auto-generate code (ONLY if null)
+    //  STEP 3: Auto-generate code (ONLY if null)
     if (!data.code) {
       const prefix = level?.name?.charAt(0).toUpperCase() || "L";
 
@@ -346,7 +347,7 @@ export class StorageService {
       data.code = `${prefix}${nextNumber}`;
     }
 
-    // ✅ STEP 4: Duplicate check (AFTER generation)
+    //  STEP 4: Duplicate check (AFTER generation)
     if (data.code) {
       const exists = await this.repository.checkDuplicateLocationCode(
         data.code,
@@ -362,10 +363,10 @@ export class StorageService {
       }
     }
 
-    // ✅ STEP 5: Create location
+    //  STEP 5: Create location
     const locationId = await this.repository.createLocation(businessId, data);
 
-    // ✅ STEP 6: Partition logic (row/column)
+    //  STEP 6: Partition logic (row/column)
     if (level.is_partitionable) {
       const rows = Number(data.partition_rows || 0);
       const cols = Number(data.partition_columns || 0);
@@ -383,7 +384,7 @@ export class StorageService {
       }
 
       if (rows * cols > 200) {
-        throw new Error("Too many partitions (max 200)");
+        throw new BusinessError("Too many partitions (max 200)");
       }
 
       const partitions = [];
@@ -479,7 +480,7 @@ export class StorageService {
         data.partition_rows === undefined ||
         data.partition_columns === undefined
       ) {
-        throw new Error("Both rows and columns required");
+        throw new BusinessError("Both rows and columns required");
       }
 
       const rows = data.partition_rows;
@@ -492,7 +493,7 @@ export class StorageService {
       }
 
       if (rows * cols > 200) {
-        throw new Error("Too many partitions (max 200)");
+        throw new BusinessError("Too many partitions (max 200)");
       }
     }
 
@@ -570,7 +571,7 @@ export class StorageService {
     try {
       await conn.beginTransaction();
 
-      // ✅ STEP 1: TEMP SHIFT (avoid unique conflict)
+      //  STEP 1: TEMP SHIFT (avoid unique conflict)
       for (const lvl of structure) {
         await conn.query(
           `UPDATE storage_structure_levels
@@ -580,7 +581,7 @@ export class StorageService {
         );
       }
 
-      // ✅ STEP 2: APPLY NEW ORDER
+      //  STEP 2: APPLY NEW ORDER
       for (const lvl of structure) {
         const [result]: any = await conn.query(
           `UPDATE storage_structure_levels
@@ -590,7 +591,7 @@ export class StorageService {
         );
 
         if (result.affectedRows === 0) {
-          throw new Error(`Structure level not found: ${lvl.id}`);
+          throw new BusinessError(`Structure level not found: ${lvl.id}`);
         }
       }
 

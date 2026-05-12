@@ -1,11 +1,37 @@
+import { BusinessError } from "../../utils/appError";
 import axios from "axios";
 import pool from "../../config/db";
 import { StockRepository } from "./stock.repository";
 import * as authRepo from "../../modules/auth/auth.repository";
 import { getAuthHeaders } from "../../utils/getAuthHeaders";
+import { fetchBulkProductDetails } from "../products/product.service";
+import { SupplierService } from "../suppliers/supplier.service";
 
 export class StockService {
   private repo = new StockRepository();
+
+  async buildLocationPath(locationId: number): Promise<string> {
+    const names: string[] = [];
+
+    let currentId = locationId;
+
+    while (currentId) {
+      const [rows]: any = await pool.execute(
+        `SELECT id, name, parent_id
+       FROM storage_locations
+       WHERE id = ?`,
+        [currentId],
+      );
+
+      if (!rows.length) break;
+
+      names.unshift(rows[0].name);
+
+      currentId = rows[0].parent_id;
+    }
+
+    return names.join(" > ");
+  }
 
   async saveStock(businessId: number, data: any) {
     const conn = await pool.getConnection();
@@ -13,23 +39,123 @@ export class StockService {
     try {
       await conn.beginTransaction();
 
+      // 🔥 REMOVE EMPTY VARIANTS
+      data.variants = (data.variants || []).filter((v: any) => {
+        const totalQty = Number(v.qty || 0);
+        const buyingPrice = Number(v.buying_price || 0);
+        const sellingPrice = Number(v.selling_price || 0);
+
+        return totalQty > 0 || buyingPrice > 0 || sellingPrice > 0;
+      });
+
+      // 🔥 VALIDATE AT LEAST ONE VARIANT
+      if (!data.variants.length) {
+        throw new BusinessError("At least one variant required");
+      }
+
+      // 🔥 VALIDATE STOCK TYPE TOTAL
+      for (const v of data.variants || []) {
+        const totalStockTypeQty = (v.stock_types || []).reduce(
+          (sum: number, t: any) => sum + Number(t.qty || 0),
+          0,
+        );
+
+        if (totalStockTypeQty !== Number(v.qty || 0)) {
+          throw new BusinessError(`Stock mismatch for variant ${v.variant_id}`);
+        }
+      }
+
+      // 🔥 VALIDATE VARIANT OWNERSHIP
+      for (const v of data.variants || []) {
+        const validVariant = await this.repo.checkVariantBelongsToBusiness(
+          v.variant_id,
+          businessId,
+        );
+
+        if (!validVariant) {
+          throw new BusinessError(
+            `Variant ${v.variant_id} does not belong to this business`,
+          );
+        }
+      }
+
+      // 🔥 CREATE STOCK
       const stockId = await this.repo.createOrUpdateStock(
         conn,
         businessId,
         data,
       );
 
+      // 🔥 INSERT VARIANTS
+      if (data.variants?.length) {
+        await this.repo.saveVariants(conn, stockId, data.variants);
+      }
+
+      await conn.commit();
+
+      return { stock_id: stockId };
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async updateStock(stockId: number, businessId: number, data: any) {
+    const conn = await pool.getConnection();
+
+    try {
+      await conn.beginTransaction();
+
+      // 🔥 REMOVE EMPTY VARIANTS
+      data.variants = (data.variants || []).filter((v: any) => {
+        const totalQty = Number(v.qty || 0);
+        const buyingPrice = Number(v.buying_price || 0);
+        const sellingPrice = Number(v.selling_price || 0);
+
+        return totalQty > 0 || buyingPrice > 0 || sellingPrice > 0;
+      });
+
+      // 🔥 VALIDATE AT LEAST ONE VARIANT
+      if (!data.variants.length) {
+        throw new BusinessError("At least one variant required");
+      }
+
+      // 🔥 VALIDATE STOCK TYPE TOTAL
       for (const v of data.variants || []) {
         const totalStockTypeQty = (v.stock_types || []).reduce(
-          (sum: number, t: any) => sum + (t.qty || 0),
+          (sum: number, t: any) => sum + Number(t.qty || 0),
           0,
         );
 
-        if (totalStockTypeQty !== v.qty) {
-          throw new Error(`Stock mismatch for variant ${v.variant_id}`);
+        if (totalStockTypeQty !== Number(v.qty || 0)) {
+          throw new BusinessError(`Stock mismatch for variant ${v.variant_id}`);
         }
       }
 
+      // 🔥 VALIDATE VARIANT OWNERSHIP
+      for (const v of data.variants || []) {
+        const validVariant = await this.repo.checkVariantBelongsToBusiness(
+          v.variant_id,
+          businessId,
+        );
+
+        if (!validVariant) {
+          throw new BusinessError(
+            `Variant ${v.variant_id} does not belong to this business`,
+          );
+        }
+      }
+
+      // 🔥 UPDATE STOCK MASTER
+      await this.repo.updateStock(conn, stockId, businessId, data);
+
+      // 🔥 DELETE OLD DATA
+      await this.repo.deleteVariants(conn, stockId);
+      await this.repo.deleteStockTypes(conn, stockId);
+
+      // 🔥 INSERT NEW DATA
       if (data.variants?.length) {
         await this.repo.saveVariants(conn, stockId, data.variants);
       }
@@ -61,7 +187,8 @@ export class StockService {
           for (const loc of t.locations || []) {
             // 1. Prevent duplicate locations
             const key = `${v.stock_variant_id}-${t.stock_type_id}-${loc.location_id}`;
-            if (seen.has(key)) throw new Error("Duplicate location entry");
+            if (seen.has(key))
+              throw new BusinessError("Duplicate location entry");
             seen.add(key);
 
             // 2. Validate location ownership
@@ -70,7 +197,7 @@ export class StockService {
               businessId,
             );
             if (!isOwner) {
-              throw new Error(
+              throw new BusinessError(
                 `Location ${loc.location_id} does not belong to business`,
               );
             }
@@ -88,7 +215,7 @@ export class StockService {
 
           // 3. Validate qty: location qty sum <= stock_type qty
           if (locationQtySum > t.qty) {
-            throw new Error(
+            throw new BusinessError(
               `Location qty sum (${locationQtySum}) exceeds stock type qty (${t.qty}) for variant ${v.stock_variant_id}`,
             );
           }
@@ -118,27 +245,21 @@ export class StockService {
     const user = await authRepo.getUserById(userId);
 
     if (!user?.central_token) {
-      throw new Error("Central token missing");
+      throw new BusinessError("Central token missing");
     }
-    const headers = await getAuthHeaders();
 
-    const supplierRes = await axios.get(
-      "https://user.jobes24x7.com/api/suppliers",
-      {
-        headers: {
-          ...headers,
-          Authorization: `Bearer ${user.central_token}`,
-        },
-      },
-    );
+    const supplierService = new SupplierService();
 
-    const supplierList = supplierRes.data?.data?.data || [];
+    const supplierRes = await supplierService.getAllSuppliers(userId);
+
+    const supplierList = supplierRes?.data?.data || [];
+
     const supplierMap = new Map(
       supplierList.map((s: any) => {
-        const key = s.business_cre_id || Number(String(s.id).split("-")[1]);
+        const key = Number(s.id);
 
         const name =
-          s.business_name || s.supplier_name || s.company_name || "Unknown";
+          s.supplier_name || s.company_name || s.business_name || "Unknown";
 
         return [key, name];
       }),
@@ -146,124 +267,163 @@ export class StockService {
 
     const stocks = await this.repo.getStocks(businessId);
 
+    const productIds: number[] = [
+      ...new Set<number>(
+        stocks
+          .map((s: any) => Number(s.product_id))
+          .filter((id: number) => !isNaN(id)),
+      ),
+    ];
+
+    const products = await fetchBulkProductDetails(productIds);
+
+    const productMap = new Map<number, any>(
+      products.map((p: any) => [p.id, p]),
+    );
+
     const stockIds = stocks.map((s: any) => s.stock_id);
 
     const variants = await this.repo.getVariantsByStockIds(stockIds);
     const types = await this.repo.getStockTypesByStockIds(stockIds);
-    const stockTypeMaster = await this.repo.getStockTypeMaster();
 
     const variantMap: any = {};
     const typeMap: any = {};
 
-    // group variants
+    // 🔥 GROUP VARIANTS
     variants.forEach((v: any) => {
-      if (!variantMap[v.stock_id]) variantMap[v.stock_id] = [];
+      if (!variantMap[v.stock_id]) {
+        variantMap[v.stock_id] = [];
+      }
+
       variantMap[v.stock_id].push(v);
     });
 
-    // group stock types
+    // 🔥 GROUP STOCK TYPES
     types.forEach((t: any) => {
-      if (!typeMap[t.variant_id]) typeMap[t.variant_id] = [];
+      if (!typeMap[t.variant_id]) {
+        typeMap[t.variant_id] = [];
+      }
+
       typeMap[t.variant_id].push(t);
     });
 
-    // attach stock types to variants
+    // 🔥 ATTACH STOCK TYPES
     Object.values(variantMap).forEach((variantList: any) => {
       variantList.forEach((v: any) => {
         const existing = typeMap[v.id] || [];
 
-        v.stock_types = stockTypeMaster.map((type: any) => {
-          const found = existing.find((t: any) => t.stock_type_id === type.id);
+        v.stock_types = existing
+          .filter((t: any) => Number(t.qty) > 0)
+          .map((t: any) => ({
+            stock_type_id: t.stock_type_id,
+            name: t.name,
+            qty: Number(t.qty),
+          }));
 
-          return {
-            stock_type_id: type.id,
-            name: type.name,
-            qty: found?.qty || 0,
-          };
-        });
+        // 🔥 VARIANT TOTAL
+        v.total_qty = v.stock_types.reduce(
+          (sum: number, t: any) => sum + Number(t.qty || 0),
+          0,
+        );
       });
     });
 
-    return stocks.map((row: any) => {
-      const variants = variantMap[row.stock_id] || [];
+    return stocks
+      .map((row: any) => {
+        // 🔥 REMOVE EMPTY VARIANTS
+        const variants = (variantMap[row.stock_id] || []).filter(
+          (v: any) => v.total_qty > 0,
+        );
 
-      // ✅ calculate total from stock_types (BEST METHOD)
-      const total_qty = variants.reduce((sum: number, v: any) => {
-        const typeTotal = (v.stock_types || []).reduce(
-          (tSum: number, t: any) => tSum + (t.qty || 0),
+        // 🔥 STOCK TOTAL
+        const total_qty = variants.reduce(
+          (sum: number, v: any) => sum + Number(v.total_qty || 0),
           0,
         );
-        return sum + typeTotal;
-      }, 0);
 
-      return {
-        id: row.stock_id,
-        product_id: row.product_id,
-        product_name: row.product_name,
-        created_at: row.created_at,
+        return {
+          id: row.stock_id,
 
-        supplier: row.supplier_id
-          ? {
-              id: row.supplier_id,
-              name: supplierMap.get(row.supplier_id) || null,
-            }
-          : null,
+          product_id: row.product_id,
 
-        total_qty, // 🔥 NEW FIELD
+          product_name:
+            productMap.get(Number(row.product_id))?.name || row.product_name,
 
-        variants,
-      };
-    });
+          base_image:
+            productMap.get(Number(row.product_id))?.base_image || null,
+
+          dynamic_fields:
+            productMap.get(Number(row.product_id))?.dynamic_fields || [],
+
+          created_at: row.created_at,
+
+          supplier: row.supplier_id
+            ? {
+                id: row.supplier_id,
+                name: supplierMap.get(Number(row.supplier_id)) || "Unknown",
+              }
+            : null,
+
+          total_qty,
+
+          variants,
+        };
+      })
+      .filter((s: any) => s.total_qty > 0);
   }
 
   async getStockById(stockId: number, businessId: number) {
     const stock = await this.repo.getStock(stockId, businessId);
 
     const variants = await this.repo.getVariants(stockId);
+
     const types = await this.repo.getStockTypes(stockId);
-    const stockTypeMaster = await this.repo.getStockTypeMaster();
 
     const typeMap: any = {};
 
+    // 🔥 GROUP STOCK TYPES
     types.forEach((t: any) => {
-      if (!typeMap[t.variant_id]) typeMap[t.variant_id] = [];
+      if (!typeMap[t.variant_id]) {
+        typeMap[t.variant_id] = [];
+      }
+
       typeMap[t.variant_id].push(t);
     });
 
+    // 🔥 ATTACH STOCK TYPES
     variants.forEach((v: any) => {
       const existing = typeMap[v.id] || [];
 
-      v.stock_types = stockTypeMaster.map((type: any) => {
-        const found = existing.find((t: any) => t.stock_type_id === type.id);
+      v.stock_types = existing
+        .filter((t: any) => Number(t.qty) > 0)
+        .map((t: any) => ({
+          stock_type_id: t.stock_type_id,
+          name: t.name,
+          qty: Number(t.qty),
+        }));
 
-        return {
-          stock_type_id: type.id,
-          name: type.name,
-          qty: found?.qty || 0,
-        };
-      });
-
-      // ✅ NEW: per-variant total
+      // 🔥 VARIANT TOTAL
       v.total_qty = v.stock_types.reduce(
-        (sum: number, t: any) => sum + (t.qty || 0),
+        (sum: number, t: any) => sum + Number(t.qty || 0),
         0,
       );
-
-      if (v.total_qty === 0) {
-        v.total_qty = v.qty;
-      }
     });
 
-    // ✅ NEW: overall stock total
-    const total_qty = variants.reduce(
-      (sum: number, v: any) => sum + (v.total_qty || 0),
+    // 🔥 REMOVE EMPTY VARIANTS
+    const filteredVariants = variants.filter((v: any) => v.total_qty > 0);
+
+    // 🔥 OVERALL TOTAL
+    const total_qty = filteredVariants.reduce(
+      (sum: number, v: any) => sum + Number(v.total_qty || 0),
       0,
     );
 
     return {
       ...stock,
-      total_qty, // 🔥 ADD THIS
-      variants,
+
+      total_qty,
+
+      variants: filteredVariants,
     };
   }
 
@@ -271,36 +431,13 @@ export class StockService {
     await this.repo.deleteStock(stockId, businessId);
   }
 
-  async updateStock(stockId: number, businessId: number, data: any) {
-    const conn = await pool.getConnection();
-
-    try {
-      await conn.beginTransaction();
-
-      await this.repo.updateStock(conn, stockId, businessId, data);
-
-      // 🔥 DELETE OLD DATA FIRST
-      await this.repo.deleteVariants(conn, stockId);
-      await this.repo.deleteStockTypes(conn, stockId);
-
-      // 🔥 INSERT NEW DATA
-      if (data.variants?.length) {
-        await this.repo.saveVariants(conn, stockId, data.variants);
-      }
-
-      await conn.commit();
-
-      return { stock_id: stockId };
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
-  }
-
   async getAssignedLocations(stockId: number, businessId: number) {
-    return await this.repo.getStockLocations(stockId, businessId);
+    const rows = await this.repo.getStockLocations(stockId, businessId);
+    // 🔥 ADD HERE
+    for (const row of rows) {
+      row.full_location = await this.buildLocationPath(row.location_id);
+    }
+    return rows;
   }
 
   async deleteAssignedLocations(stockId: number, businessId: number) {
@@ -328,7 +465,8 @@ export class StockService {
       data.location_id,
       businessId,
     );
-    if (!isOwner) throw new Error("Location does not belong to business");
+    if (!isOwner)
+      throw new BusinessError("Location does not belong to business");
 
     return await this.repo.updateSingleLocation({
       ...data,

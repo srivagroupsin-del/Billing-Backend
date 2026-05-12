@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 
 export class SalesRepository {
@@ -41,7 +42,7 @@ export class SalesRepository {
     const [rows]: any = await connection.execute(
       `SELECT qty
         FROM product_stock_variants
-        WHERE stock_id = ? AND variant_id = ?`,
+        WHERE stock_id = ? AND id = ?`,
       [stockId, variantId],
     );
     return rows[0]?.qty || 0;
@@ -133,13 +134,13 @@ export class SalesRepository {
       `UPDATE product_stock_variants
      SET qty = qty - ?
      WHERE stock_id = ?
-     AND variant_id = ?
+     AND id = ?
      AND qty >= ?`,
       [qty, stockId, variantId, qty],
     );
 
     if (result.affectedRows === 0) {
-      throw new Error("Variant stock not available");
+      throw new BusinessError("Variant stock not available");
     }
   }
 
@@ -161,7 +162,7 @@ export class SalesRepository {
     );
 
     if (result.affectedRows === 0) {
-      throw new Error("Stock type not available");
+      throw new BusinessError("Stock type not available");
     }
   }
 
@@ -260,7 +261,7 @@ export class SalesRepository {
      LEFT JOIN srivagroupsin_product_db_2.products p 
        ON p.id = sbi.product_id
 
-     LEFT JOIN variants v 
+     LEFT JOIN product_variant_master  v 
        ON v.id = sbi.variant_id
 
      LEFT JOIN stock_types st 

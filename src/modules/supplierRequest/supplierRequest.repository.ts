@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import { PoolConnection } from "mysql2/promise";
 import pool from "../../config/db";
 
@@ -49,7 +50,7 @@ export class SupplierRequestRepository {
       i.quantity,
       i.expected_price || 0,
       i.notes || null,
-      i.stock_id, // ✅ ADD THIS
+      i.stock_id, //  ADD THIS
     ]);
 
     await conn.query(
@@ -78,7 +79,15 @@ export class SupplierRequestRepository {
 
         GROUP_CONCAT(
           DISTINCT CONCAT(
-            p.product_name, ' (', p.model, ') - ', vm.name
+            COALESCE(p.product_name, 'Unknown Product'),
+
+            CASE 
+              WHEN p.model IS NOT NULL AND p.model != ''
+              THEN CONCAT(' (', p.model, ')')
+              ELSE ''
+            END,
+            ' - ',
+            COALESCE(vm.name, 'Default')
           )
           SEPARATOR ', '
         ) as product_details
@@ -89,7 +98,7 @@ export class SupplierRequestRepository {
       LEFT JOIN srivagroupsin_product_db_2.product p 
         ON p.id = sri.product_id
       LEFT JOIN product_variant_master vm
-        ON vm.id = sri.variant_id
+        ON vm.id = sri.variant_id AND vm.is_deleted = 0
 
       WHERE sr.business_id = ?
       AND sr.is_deleted = 0
@@ -134,7 +143,7 @@ export class SupplierRequestRepository {
     LEFT JOIN srivagroupsin_product_db_2.product p 
       ON p.id = sri.product_id
     LEFT JOIN product_variant_master vm
-      ON vm.id = sri.variant_id
+      ON vm.id = sri.variant_id AND vm.is_deleted = 0
 
     WHERE sr.supplier_id = ?
     AND sr.is_deleted = 0
@@ -154,7 +163,7 @@ export class SupplierRequestRepository {
       [id],
     );
 
-    if (!req.length) throw new Error("Not found");
+    if (!req.length) throw new BusinessError("Not found");
 
     const [items]: any = await pool.query(
       `
@@ -162,7 +171,7 @@ export class SupplierRequestRepository {
           sri.id,
           sri.product_id,
           sri.variant_id,
-          sri.stock_id,      -- ✅ ADD THIS
+          sri.stock_id,      --  ADD THIS
           sri.quantity,
           sri.expected_price,
           sri.notes,
@@ -177,7 +186,7 @@ export class SupplierRequestRepository {
           ON p.id = sri.product_id
 
         LEFT JOIN product_variant_master vm
-          ON vm.id = sri.variant_id
+          ON vm.id = sri.variant_id AND vm.is_deleted = 0
 
         WHERE sri.request_id = ?
         AND sri.is_deleted = 0

@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import { PoolConnection } from "mysql2/promise";
 import pool from "../../config/db";
 
@@ -79,9 +80,9 @@ export class QuotationRepository {
       ON p.id = spm.product_id
 
     LEFT JOIN product_variant_master vm
-      ON vm.id = spm.variant_id
+      ON vm.id = spm.variant_id AND vm.is_deleted = 0
 
-    WHERE q.supplier_id = ?   -- ✅ FILTER
+    WHERE q.supplier_id = ?   --  FILTER
 
     AND q.is_deleted = 0
 
@@ -130,9 +131,9 @@ export class QuotationRepository {
       ON p.id = spm.product_id
 
     LEFT JOIN product_variant_master vm
-      ON vm.id = spm.variant_id
+      ON vm.id = spm.variant_id AND vm.is_deleted = 0
 
-    WHERE q.is_deleted = 0   -- ❌ NO supplier filter
+    WHERE q.is_deleted = 0   --  NO supplier filter
 
     GROUP BY q.id
     ORDER BY q.id DESC
@@ -149,7 +150,7 @@ export class QuotationRepository {
       [id, supplierId],
     );
 
-    if (!q.length) throw new Error("Not found");
+    if (!q.length) throw new BusinessError("Not found");
 
     const [items]: any = await pool.query(
       `
@@ -176,7 +177,7 @@ export class QuotationRepository {
       ON p.id = spm.product_id
 
     LEFT JOIN product_variant_master vm
-      ON vm.id = spm.variant_id
+      ON vm.id = spm.variant_id AND vm.is_deleted = 0
 
     WHERE qi.quotation_id=? 
       AND qi.is_deleted=0

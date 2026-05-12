@@ -1,3 +1,4 @@
+import { BusinessError } from ".//appError";
 import pool from "../config/db";
 
 type Primitive = string | number;
@@ -26,7 +27,7 @@ export const ensureUnique = async (
   const [rows]: any = await pool.query(sql, values);
 
   if (rows.length > 0) {
-    throw new Error(`${column.replace(/_/g, " ")} already exists`);
+    throw new BusinessError(`${column.replace(/_/g, " ")} already exists`)
   }
 };
 

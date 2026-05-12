@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 
 export class StorageRepository {
@@ -259,7 +260,7 @@ export class StorageRepository {
     }
 
     if (fields.length === 0) {
-      throw new Error("No fields to update");
+      throw new BusinessError("No fields to update")
     }
 
     values.push(id, businessId);
@@ -491,7 +492,7 @@ export class StorageRepository {
     }
 
     if (fields.length === 0) {
-      throw new Error("No fields to update");
+      throw new BusinessError("No fields to update")
     }
 
     values.push(id, businessId);

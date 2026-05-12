@@ -1,3 +1,4 @@
+import { fetchBulkProductDetails } from "../products/product.service";
 import { ProductAllocationRepository } from "./productAllocation.repository";
 
 export class ProductAllocationService {
@@ -7,7 +8,7 @@ export class ProductAllocationService {
     this.repository = new ProductAllocationRepository();
   }
 
-  private buildProductTree(rows: any[]) {
+  private buildProductTree(rows: any[], productMap: Map<number, any>) {
     const tree: any = {};
 
     rows.forEach((row) => {
@@ -50,20 +51,27 @@ export class ProductAllocationService {
 
       const brand = category.Brand[row.brand_id];
 
-      // ✅ PRODUCT (deduplicate)
+      //  PRODUCT (deduplicate)
       if (!brand.Products[row.product_id]) {
         brand.Products[row.product_id] = {
           allocation_id: row.allocation_id, // 🔥 ADD THIS LINE
           id: row.product_id,
-          name: row.product_name,
-          mrp: row.mrp,
+          name:
+            productMap.get(Number(row.product_id))?.name || row.product_name,
 
+          mrp: productMap.get(Number(row.product_id))?.mrp || row.mrp,
+
+          base_image:
+            productMap.get(Number(row.product_id))?.base_image || null,
+
+          dynamic_fields:
+            productMap.get(Number(row.product_id))?.dynamic_fields || [],
           Qty: {
             min: row.min_sale_qty,
             max: row.max_sale_qty,
           },
 
-          // ✅ NEW
+          //  NEW
           alternative_names: new Set(),
           gst: [],
         };
@@ -71,12 +79,12 @@ export class ProductAllocationService {
 
       const product = brand.Products[row.product_id];
 
-      // ✅ Alternative names
+      //  Alternative names
       if (row.alternative_name) {
         product.alternative_names.add(row.alternative_name);
       }
 
-      // ✅ GST
+      //  GST
       if (row.tax_id) {
         const exists = product.gst.some((g: any) => g.tax_id === row.tax_id);
 
@@ -92,7 +100,7 @@ export class ProductAllocationService {
       }
     });
 
-    // ✅ FINAL CLEAN CONVERSION
+    //  FINAL CLEAN CONVERSION
     return Object.values(tree).map((group: any) => ({
       ...group,
       Categories: Object.fromEntries(
@@ -120,7 +128,24 @@ export class ProductAllocationService {
   async getAllocatedProducts(businessId: number) {
     const rows = await this.repository.getAllocatedProducts(businessId);
 
-    return this.buildProductTree(rows);
+    // 🔥 collect product ids
+    const productIds: number[] = [
+      ...new Set<number>(
+        rows
+          .map((r: any) => Number(r.product_id))
+          .filter((id: number) => !isNaN(id)),
+      ),
+    ];
+
+    // 🔥 fetch from product service
+    const products = await fetchBulkProductDetails(productIds);
+
+    // 🔥 map
+    const productMap = new Map<number, any>(
+      products.map((p: any) => [Number(p.id), p]),
+    );
+
+    return this.buildProductTree(rows, productMap);
   }
 
   async updateAllocation(id: number, businessId: number, data: any) {

@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import { CustomerRepository } from "./customer.repository";
 import axios from "axios";
 import * as authRepo from "../auth/auth.repository";
@@ -17,11 +18,11 @@ export class CustomerService {
   async getCustomerFromCentral(userId: number, phone: string) {
     const user = await authRepo.getUserById(userId);
 
-    if (!user) throw new Error("User not found");
-    if (!user.central_token) throw new Error("Central token missing");
+    if (!user) throw new BusinessError("User not found");
+    if (!user.central_token) throw new BusinessError("Central token missing");
 
     if (new Date(user.central_token_expiry) < new Date()) {
-      throw new Error("Session expired. Please login again.");
+      throw new BusinessError("Session expired. Please login again.");
     }
 
     try {
@@ -34,7 +35,7 @@ export class CustomerService {
             Authorization: `Bearer ${user.central_token}`,
             Accept: "application/json",
           },
-          timeout: 5000, // ✅ important
+          timeout: 5000, //  important
         },
       );
 
@@ -55,27 +56,27 @@ export class CustomerService {
     } catch (err: any) {
       const errorData = err.response?.data;
 
-      console.log("❌ CUSTOMER API ERROR:", errorData || err.message);
+      console.log("CUSTOMER API ERROR:", errorData || err.message);
 
       if (errorData?.data?.code === 403) {
         return null; // 🔥 NOT ERROR — just no access
       }
 
-      throw new Error("Central customer fetch failed");
+      throw new BusinessError("Central customer fetch failed");
     }
   }
 
   getAllBusinesses = async (userId: number, search: string) => {
     const user = await authRepo.getUserById(userId);
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new BusinessError("User not found");
 
     if (!user.central_token) {
-      throw new Error("Central token missing");
+      throw new BusinessError("Central token missing");
     }
 
     if (new Date(user.central_token_expiry) < new Date()) {
-      throw new Error("Session expired. Please login again.");
+      throw new BusinessError("Session expired. Please login again.");
     }
     const headers = await getAuthHeaders();
     const response = await axios.get(
@@ -92,12 +93,12 @@ export class CustomerService {
     const apiData = response.data?.data;
 
     if (!apiData || apiData.result !== "Success") {
-      throw new Error("Failed to fetch businesses");
+      throw new BusinessError("Failed to fetch businesses");
     }
 
     let businesses = apiData.data;
 
-    // ✅ MULTI FIELD SEARCH (SAFE VERSION)
+    //  MULTI FIELD SEARCH (SAFE VERSION)
     const fields = [
       "user_main_id",
       "business_name",
@@ -130,14 +131,14 @@ export class CustomerService {
   getAllUsers = async (userId: number, search: string) => {
     const user = await authRepo.getUserById(userId);
 
-    if (!user) throw new Error("User not found");
+    if (!user) throw new BusinessError("User not found");
 
     if (!user.central_token) {
-      throw new Error("Central token missing");
+      throw new BusinessError("Central token missing");
     }
 
     if (new Date(user.central_token_expiry) < new Date()) {
-      throw new Error("Session expired. Please login again.");
+      throw new BusinessError("Session expired. Please login again.");
     }
     const headers = await getAuthHeaders();
 
@@ -155,14 +156,14 @@ export class CustomerService {
     const apiData = response.data?.data;
 
     if (!apiData || apiData.result !== "Success") {
-      throw new Error("Failed to fetch users");
+      throw new BusinessError("Failed to fetch users");
     }
 
     let users = apiData.data;
 
     // 🔥 TRANSFORM DATA (IMPORTANT)
     let formattedUsers = users.map((u: any) => ({
-      external_customer_id: u.id, // ✅ main ID
+      external_customer_id: u.id, //  main ID
       customer_type: "USER",
 
       customer_name: u.user_name,

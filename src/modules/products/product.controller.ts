@@ -1,3 +1,7 @@
+import { catchAsync } from "../../utils/catchAsync";
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Request, Response } from "express";
 import * as service from "./product.service";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
@@ -5,23 +9,23 @@ import { AuthRequest } from "../../middlewares/auth.middlewares";
 /* ===============================
    GET ROUTES
 ================================ */
-export const getProducts = async (req: Request, res: Response) => {
+export const getProducts = catchAsync(async (req: Request, res: Response) => {
   try {
     const search = (req.query.search as string) || "";
 
     const data = await service.fetchProducts(search);
 
-    res.json({ success: true, data });
+    successResponse({ res, data: data });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
-};
+});
 
-export const getProductById = async (req: Request, res: Response) => {
+export const getProductById = catchAsync(async (req: Request, res: Response) => {
   try {
     const data = await service.fetchProductById(Number(req.params.id));
-    res.json({ success: true, data });
+    successResponse({ res, data: data });
   } catch (error: any) {
-    res.status(404).json({ success: false, message: error.message });
+    throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
-};
+});

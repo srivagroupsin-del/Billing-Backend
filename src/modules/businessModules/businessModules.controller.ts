@@ -1,3 +1,6 @@
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { BusinessModulesService } from "./businessModules.service";
@@ -13,12 +16,9 @@ export class BusinessModulesController {
 
       const id = await this.service.createModule(businessId!, req.body);
 
-      res.json({ success: true, data: { id } });
+      successResponse({ res, data: { id } });
     } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -26,7 +26,7 @@ export class BusinessModulesController {
     const businessId = req.user?.business_id;
     const data = await this.service.getModules(businessId!);
 
-    res.json({ success: true, data });
+    successResponse({ res, data: data });
   };
 
   updateModule = async (req: AuthRequest, res: Response) => {
@@ -36,12 +36,9 @@ export class BusinessModulesController {
 
       await this.service.updateModule(Number(id), businessId!, req.body);
 
-      res.json({ success: true });
+      successResponse({ res });
     } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -51,7 +48,7 @@ export class BusinessModulesController {
 
     await this.service.deleteModule(Number(id), businessId!);
 
-    res.json({ success: true });
+    successResponse({ res });
   };
 
   /* MODULE ITEMS */
@@ -61,12 +58,9 @@ export class BusinessModulesController {
 
       const id = await this.service.createModuleItem(businessId!, req.body);
 
-      res.json({ success: true, data: { id } });
+      successResponse({ res, data: { id } });
     } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 
@@ -79,7 +73,7 @@ export class BusinessModulesController {
       Number(moduleId),
     );
 
-    res.json({ success: true, data });
+    successResponse({ res, data: data });
   };
 
   updateModuleItem = async (req: AuthRequest, res: Response) => {
@@ -88,7 +82,7 @@ export class BusinessModulesController {
 
     await this.service.updateModuleItem(Number(id), businessId!, req.body);
 
-    res.json({ success: true });
+    successResponse({ res });
   };
 
   deleteModuleItem = async (req: AuthRequest, res: Response) => {
@@ -97,6 +91,6 @@ export class BusinessModulesController {
 
     await this.service.deleteModuleItem(Number(id), businessId!);
 
-    res.json({ success: true });
+    successResponse({ res });
   };
 }

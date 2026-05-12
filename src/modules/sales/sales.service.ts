@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 import { SalesRepository } from "./sales.repository";
 import { MovementRepository } from "../stockMovement/movement.repository";
@@ -12,21 +13,21 @@ export class SalesService {
     const connection = await pool.getConnection();
 
     try {
-      if (!businessId) throw new Error("Business ID missing");
+      if (!businessId) throw new BusinessError("Business ID missing");
 
       if (!data.items || data.items.length === 0) {
-        throw new Error("Bill must contain at least one item");
+        throw new BusinessError("Bill must contain at least one item");
       }
 
       // 🔥 STEP 1: VALIDATION (ADDED)
       data.items.forEach((i: any) => {
-        if (!i.product_id) throw new Error("product_id missing");
-        if (!i.stock_id) throw new Error("stock_id missing");
-        if (!i.variant_id) throw new Error("variant_id missing");
+        if (!i.product_id) throw new BusinessError("product_id missing");
+        if (!i.stock_id) throw new BusinessError("stock_id missing");
+        if (!i.variant_id) throw new BusinessError("variant_id missing");
         if (i.stock_type_id === undefined || i.stock_type_id === null) {
-          throw new Error("stock_type_id missing");
+          throw new BusinessError("stock_type_id missing");
         }
-        if (!i.qty) throw new Error("qty missing");
+        if (!i.qty) throw new BusinessError("qty missing");
 
         // safe defaults (only for optional fields)
         i.price = i.price ?? 0;
@@ -36,7 +37,7 @@ export class SalesService {
       await connection.beginTransaction();
 
       const customerId = data.external_customer_id;
-      if (!customerId) throw new Error("Customer ID required");
+      if (!customerId) throw new BusinessError("Customer ID required");
 
       // 🔹 Generate bill number
       const billNumber = await this.repo.generateBillNumber(
@@ -66,12 +67,14 @@ export class SalesService {
         const isValidType = await this.repo.validateStockType(
           connection,
           item.stock_id,
-          item.variant_id, // ✅ ADD THIS
+          item.variant_id, //  ADD THIS
           item.stock_type_id,
         );
 
         if (!isValidType) {
-          throw new Error(`Invalid stock type for product ${item.product_id}`);
+          throw new BusinessError(
+            `Invalid stock type for product ${item.product_id}`,
+          );
         }
 
         const variantQty = await this.repo.checkVariantStock(
@@ -81,18 +84,18 @@ export class SalesService {
         );
 
         if (variantQty < item.qty) {
-          throw new Error(`Insufficient variant stock`);
+          throw new BusinessError(`Insufficient variant stock`);
         }
 
         const typeQty = await this.repo.checkStockTypeQty(
           connection,
           item.stock_id,
-          item.variant_id, // ✅ ADD THIS
+          item.variant_id, //  ADD THIS
           item.stock_type_id,
         );
 
         if (typeQty < item.qty) {
-          throw new Error(`Insufficient stock type`);
+          throw new BusinessError(`Insufficient stock type`);
         }
       }
 
@@ -111,7 +114,7 @@ export class SalesService {
         await this.repo.reduceStockTypeSafe(
           connection,
           item.stock_id,
-          item.variant_id, // ✅ ADD THIS
+          item.variant_id, //  ADD THIS
           item.stock_type_id,
           item.qty,
         );
@@ -151,7 +154,7 @@ export class SalesService {
       const bill = await this.repo.getBillById(connection, businessId, billId);
 
       if (!bill) {
-        throw new Error("Bill not found");
+        throw new BusinessError("Bill not found");
       }
 
       const items = await this.repo.getBillItems(connection, billId);
@@ -186,7 +189,7 @@ export class SalesService {
       );
 
       if (!bill) {
-        throw new Error("Bill not found");
+        throw new BusinessError("Bill not found");
       }
 
       const items = await this.repo.getBillItems(connection, bill.id);
@@ -230,7 +233,7 @@ export class SalesService {
       const bill = await this.repo.getBillById(connection, businessId, billId);
 
       if (!bill) {
-        throw new Error("Bill not found");
+        throw new BusinessError("Bill not found");
       }
 
       // 🔹 2. Get Items

@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 import { SupplierRequestRepository } from "./supplierRequest.repository";
 import { StockRepository } from "../stock/stock.repository";
@@ -13,16 +14,16 @@ export class SupplierRequestService {
 
   validate(data: any) {
     if (!data.supplier_id || !data.delivery_datetime) {
-      throw new Error("Missing required fields");
+      throw new BusinessError("Missing required fields");
     }
 
     if (!Array.isArray(data.items) || data.items.length === 0) {
-      throw new Error("Items required");
+      throw new BusinessError("Items required");
     }
 
     data.items.forEach((i: any) => {
       if (!i.product_id || !i.variant_id || !i.quantity || !i.stock_id) {
-        throw new Error(
+        throw new BusinessError(
           "Invalid item (product_id, variant_id, quantity, stock_id required)",
         );
       }
@@ -37,7 +38,7 @@ export class SupplierRequestService {
     requestId?: number,
   ) {
     for (const i of items) {
-      // ✅ NEW: validate stock belongs to product + business
+      //  NEW: validate stock belongs to product + business
       const [stockCheck]: any = await conn.query(
         `SELECT id FROM product_stock 
      WHERE id = ? AND product_id = ? AND business_id = ? AND is_deleted = 0`,
@@ -45,7 +46,7 @@ export class SupplierRequestService {
       );
 
       if (!stockCheck.length) {
-        throw new Error(
+        throw new BusinessError(
           `Invalid stock_id ${i.stock_id} for product ${i.product_id}`,
         );
       }
@@ -113,7 +114,7 @@ export class SupplierRequestService {
   async getReceived(supplierId: number, userId: number) {
     const rows = await this.repo.getReceivedRequests(supplierId);
 
-    // ✅ use ALL businesses API
+    //  use ALL businesses API
     const businessRes = await getAllBusinesses(userId);
 
     const map = new Map(
@@ -162,7 +163,7 @@ export class SupplierRequestService {
         !data.notes &&
         !data.items
       ) {
-        throw new Error("Nothing to update");
+        throw new BusinessError("Nothing to update");
       }
 
       // 🔥 VALIDATE WITH EXISTING REQUEST
@@ -210,7 +211,7 @@ export class SupplierRequestService {
     ];
 
     if (!allowed.includes(status)) {
-      throw new Error("Invalid status");
+      throw new BusinessError("Invalid status");
     }
 
     const conn = await pool.getConnection();
@@ -220,24 +221,24 @@ export class SupplierRequestService {
 
       const request = await this.repo.getById(id);
 
-      if (!request) throw new Error("Request not found");
+      if (!request) throw new BusinessError("Request not found");
 
       if (!request.items || request.items.length === 0) {
-        throw new Error("Request items missing");
+        throw new BusinessError("Request items missing");
       }
 
       const isCreator = request.business_id === businessId;
       const isSupplier = request.supplier_id === businessId;
 
       if (!isCreator && !isSupplier) {
-        throw new Error("Unauthorized");
+        throw new BusinessError("Unauthorized");
       }
 
       const currentStatus = request.status;
 
       // 🔥 prevent duplicate same status
       if (currentStatus === status) {
-        throw new Error("Already in this status");
+        throw new BusinessError("Already in this status");
       }
 
       // 🔥 valid transitions
@@ -251,7 +252,7 @@ export class SupplierRequestService {
       };
 
       if (!validTransitions[currentStatus]?.includes(status)) {
-        throw new Error(
+        throw new BusinessError(
           `Invalid status transition from ${currentStatus} → ${status}`,
         );
       }
@@ -259,11 +260,11 @@ export class SupplierRequestService {
       // 🔥 BUSINESS RULES
       if (isCreator) {
         if (status !== "cancelled") {
-          throw new Error("Creator can only cancel request");
+          throw new BusinessError("Creator can only cancel request");
         }
 
         if (["shipped", "delivered"].includes(currentStatus)) {
-          throw new Error("Cannot cancel after shipment");
+          throw new BusinessError("Cannot cancel after shipment");
         }
       }
 
@@ -277,11 +278,11 @@ export class SupplierRequestService {
         ];
 
         if (!allowedSupplierStatuses.includes(status)) {
-          throw new Error("Supplier not allowed");
+          throw new BusinessError("Supplier not allowed");
         }
 
         if (status === "partial_accepted" && (!reason || !reason.trim())) {
-          throw new Error("Reason required for partial acceptance");
+          throw new BusinessError("Reason required for partial acceptance");
         }
       }
 
@@ -292,7 +293,7 @@ export class SupplierRequestService {
       if (currentStatus !== "delivered" && status === "delivered") {
         for (const item of request.items) {
           if (!item.stock_id) {
-            throw new Error(`Stock ID missing for item ${item.id}`);
+            throw new BusinessError(`Stock ID missing for item ${item.id}`);
           }
 
           await this.movementRepo.createMovement(conn, {
@@ -335,7 +336,7 @@ export class SupplierRequestService {
     const request = await this.repo.getById(requestId);
 
     if (request.business_id !== businessId) {
-      throw new Error("Unauthorized");
+      throw new BusinessError("Unauthorized");
     }
 
     return await this.repo.deleteItem(itemId, requestId);

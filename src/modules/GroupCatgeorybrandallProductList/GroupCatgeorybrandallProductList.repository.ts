@@ -104,17 +104,17 @@ export const getBrandProducts = async (
          P.id AS product_id,
          P.product_name,
          P.mrp,
+         P.base_image,
          P.description,
 
-         -- ✅ Alternative Names
+         --  Alternative Names
          GROUP_CONCAT(DISTINCT PAN.alternative_name SEPARATOR ', ') AS alternative_names,
 
-         -- ✅ GST DATA
-         PT.id AS tax_id,
-         PT.gst_variant_id,
-         VF.value AS gst_value,
-         PT.hsn_code,
-         PT.status AS tax_status
+         --  Dynamic Fields
+         pdf.field_id,
+         pdf.value,
+         f.field_name,
+         f.display_name
 
       FROM product_category_brand PCB
 
@@ -138,29 +138,69 @@ export const getBrandProducts = async (
          AND B.is_active = 1
          AND B.status = 'active'
 
-      -- ✅ Alternative Names JOIN
+      --  Alternative Names
       LEFT JOIN product_alternative_names PAN
          ON PAN.product_id = P.id
 
-      -- ✅ GST JOIN
-      LEFT JOIN product_tax PT
-         ON PT.product_id = P.id
-         AND PT.is_active = 1
-         AND PT.status = 'active'
+      --  Dynamic Fields
+      LEFT JOIN product_dynamic_fields pdf
+         ON pdf.product_id = P.id
+         AND pdf.category_brand_id = PCB.category_brand_id
 
-      LEFT JOIN variants_fields VF
-         ON VF.id = PT.gst_variant_id
-         AND VF.is_active = 1
+      LEFT JOIN multitab_fields f
+         ON f.id = pdf.field_id
 
       WHERE B.id = ?
       AND C.id = ?
       AND PCB.is_active = 1
       AND PCB.status = 'active'
-
       GROUP BY 
-         P.id, PT.id
+         B.id,
+         B.brand_name,
+
+         P.id,
+         P.product_name,
+         P.mrp,
+         P.base_image,
+         P.description,
+
+         pdf.field_id,
+         pdf.value,
+         f.field_name,
+         f.display_name
     `,
     [brand_id, category_id],
+  );
+
+  return rows;
+};
+
+export const getProductDynamicFields = async (
+  productId: number,
+  categoryId: number,
+  brandId: number,
+) => {
+  const [rows] = await productPool.query(
+    `
+    SELECT
+      pdf.field_id,
+      pdf.value,
+      f.field_name,
+      f.display_name
+
+    FROM product_dynamic_fields pdf
+
+    INNER JOIN category_brand_mapping cbm
+      ON cbm.id = pdf.category_brand_id
+
+    LEFT JOIN multitab_fields f
+      ON f.id = pdf.field_id
+
+    WHERE pdf.product_id = ?
+      AND cbm.category_id = ?
+      AND cbm.brand_id = ?
+    `,
+    [productId, categoryId, brandId],
   );
 
   return rows;

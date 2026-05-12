@@ -48,13 +48,13 @@ export const getCategoryGroupMappings = async (
         parent = {
           id: row.parent_category_id,
           name: row.parent_category_name,
-          secondary_categories: [], // ✅ CORRECT
+          secondary_categories: [], //  CORRECT
         };
         group.primary_categories.push(parent);
       }
 
       parent.secondary_categories.push({
-        // ✅ CORRECT
+        //  CORRECT
         id: row.category_id,
         name: row.category_name,
       });
@@ -175,40 +175,42 @@ export const getBrandWithProducts = async (
         id: r.product_id,
         name: r.product_name,
         mrp: Number(r.mrp),
+        base_image: r.base_image
+          ? `${process.env.PRODUCT_SERVICE_URL}/uploads/${r.base_image}`
+          : null,
         description: r.description || null,
 
-        // ✅ ADD THIS
+        //  ADD THIS
         alternative_names: new Set(),
 
-        // ✅ GST ARRAY
-        gst: [],
+        dynamic_fields: [],
       });
     }
 
     const product = productsMap.get(r.product_id);
 
-    // ✅ HANDLE ALTERNATIVE NAMES
+    //  HANDLE ALTERNATIVE NAMES
     if (r.alternative_name) {
       product.alternative_names.add(r.alternative_name);
     }
 
-    // ✅ HANDLE GST (avoid duplicates)
-    if (r.tax_id) {
-      const exists = product.gst.some((g: any) => g.tax_id === r.tax_id);
+    if (r.field_id) {
+      const exists = product.dynamic_fields.some(
+        (d: any) => d.field_id === r.field_id && d.value === r.value,
+      );
 
       if (!exists) {
-        product.gst.push({
-          tax_id: r.tax_id,
-          gst_variant_id: r.gst_variant_id,
-          gst_value: r.gst_value,
-          hsn_code: r.hsn_code,
-          status: r.tax_status,
+        product.dynamic_fields.push({
+          field_id: r.field_id,
+          field_name: r.field_name,
+          display_name: r.display_name,
+          value: r.value,
         });
       }
     }
   });
 
-  // ✅ convert Set → Array
+  //  convert Set → Array
   const products = Array.from(productsMap.values()).map((p: any) => ({
     ...p,
     alternative_names: Array.from(p.alternative_names),
@@ -219,4 +221,12 @@ export const getBrandWithProducts = async (
     brand_name: rows[0].brand_name,
     products,
   };
+};
+
+export const fetchProductDynamicFields = async (
+  productId: number,
+  categoryId: number,
+  brandId: number,
+) => {
+  return await repo.getProductDynamicFields(productId, categoryId, brandId);
 };

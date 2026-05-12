@@ -1,20 +1,16 @@
+import { catchAsync } from "../../utils/catchAsync";
+import { successResponse } from "../../utils/response";
 import { Request, Response } from "express";
 import * as userService from "./user.service";
 
-export const getUsers = async (req: Request, res: Response) => {
+export const getUsers = catchAsync(async (req: Request, res: Response) => {
   const users = await userService.fetchUsers();
 
-  res.json({
-    success: true,
-    data: users,
-  });
-};
+  successResponse({ res, data: users });
+});
 
-export const getActiveUsers = async (req: Request, res: Response) => {
+export const getActiveUsers = catchAsync(async (req: Request, res: Response) => {
   const users = await userService.fetchActiveUsers();
 
-  res.json({
-    success: true,
-    data: users,
-  });
-};
+  successResponse({ res, data: users });
+});

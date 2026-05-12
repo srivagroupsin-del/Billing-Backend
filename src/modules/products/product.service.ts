@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import * as repo from "./product.repository";
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
@@ -6,6 +7,8 @@ import fs from "fs";
 import { logAudit } from "../audit/audit.service";
 import pool from "../../config/db";
 import { ensureUniqueActive } from "../../utils/uniqueCheck";
+import axios from "axios";
+import { getAuthHeaders, getProductHeaders } from "../../utils/getAuthHeaders";
 
 /* =========================================
    FETCH ALL PRODUCTS
@@ -21,7 +24,7 @@ export const fetchProductById = async (id: number) => {
   const rows = await repo.getProductById(id);
 
   if (!rows || rows.length === 0) {
-    throw new Error("Product not found");
+    throw new BusinessError("Product not found");
   }
 
   const first = rows[0];
@@ -36,7 +39,11 @@ export const fetchProductById = async (id: number) => {
     info: first.info,
     note: first.note,
     system_note: first.system_note,
-    base_image: first.base_image,
+
+    base_image: first.base_image
+      ? `${process.env.PRODUCT_SERVICE_URL}/uploads/${first.base_image}`
+      : null,
+
     status: first.status,
     alternative_names: [] as string[],
     mappings: [] as any[],
@@ -46,12 +53,12 @@ export const fetchProductById = async (id: number) => {
   const mapSet = new Set<number>();
 
   for (const row of rows) {
-    // ✅ alternative names
+    //  alternative names
     if (row.alternative_name) {
       altSet.add(row.alternative_name);
     }
 
-    // ✅ mappings
+    //  mappings
     if (row.mapping_id && !mapSet.has(row.mapping_id)) {
       mapSet.add(row.mapping_id);
 
@@ -71,4 +78,27 @@ export const fetchProductById = async (id: number) => {
   product.alternative_names = Array.from(altSet);
 
   return product;
+};
+
+export const fetchBulkProductDetails = async (productIds: number[]) => {
+  try {
+    const headers = await getProductHeaders();
+
+    const response = await axios.post(
+      `${process.env.PRODUCT_SERVICE_URL}/api/products/bulk-details`,
+      {
+        product_ids: productIds,
+      },
+      {
+        headers,
+        timeout: 5000,
+      },
+    );
+
+    return response.data?.data || [];
+  } catch (err: any) {
+    console.error("Bulk product API failed:", err.message);
+
+    return [];
+  }
 };

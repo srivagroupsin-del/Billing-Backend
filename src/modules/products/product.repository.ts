@@ -140,5 +140,5 @@ export const getProductById = async (id: number) => {
 
   if (!rows.length) return null;
 
-  return rows; // ✅ IMPORTANT (NOT rows[0])
+  return rows; //  IMPORTANT (NOT rows[0])
 };

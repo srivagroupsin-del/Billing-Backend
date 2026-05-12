@@ -1,3 +1,6 @@
+import { BusinessError } from "../../utils/appError";
+import { successResponse } from "../../utils/response";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { QuotationService } from "./quotation.service";
@@ -13,7 +16,7 @@ export class QuotationController {
   // 🔥 TYPE-SAFE USER
   private getUser(req: AuthRequest): SafeUser {
     if (!req.user || req.user.business_id === undefined) {
-      throw new Error("Unauthorized");
+      throw new BusinessError("Unauthorized")
     }
 
     return {
@@ -24,10 +27,7 @@ export class QuotationController {
 
   private handleError(res: Response, err: any) {
     const status = err.message === "Unauthorized" ? 401 : 400;
-    return res.status(status).json({
-      success: false,
-      message: err.message,
-    });
+    throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
 
   // 🔹 CREATE
@@ -41,11 +41,7 @@ export class QuotationController {
         user.business_id,
       );
 
-      res.json({
-        success: true,
-        message: "Quotation created",
-        data,
-      });
+      successResponse({ res, data: data, message: "Quotation created" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -57,7 +53,7 @@ export class QuotationController {
     try {
       const data = await this.service.getAll();
 
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -69,12 +65,12 @@ export class QuotationController {
       const supplierId = req.user?.business_id;
 
       if (!supplierId) {
-        throw new Error("Unauthorized");
+        throw new BusinessError("Unauthorized")
       }
 
       const data = await this.service.getBySupplierId(supplierId);
 
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -86,11 +82,11 @@ export class QuotationController {
       const user = this.getUser(req);
       const id = Number(req.params.id);
 
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       const data = await this.service.getById(id, user.business_id);
 
-      res.json({ success: true, data });
+      successResponse({ res, data: data });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -102,7 +98,7 @@ export class QuotationController {
       const user = this.getUser(req);
       const id = Number(req.params.id);
 
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       const data = await this.service.update(
         id,
@@ -111,11 +107,7 @@ export class QuotationController {
         user.business_id,
       );
 
-      res.json({
-        success: true,
-        message: "Updated",
-        data,
-      });
+      successResponse({ res, data: data, message: "Updated" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -127,14 +119,11 @@ export class QuotationController {
       const user = this.getUser(req);
       const id = Number(req.params.id);
 
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       await this.service.softDelete(id, user.business_id);
 
-      res.json({
-        success: true,
-        message: "Deleted",
-      });
+      successResponse({ res, message: "Deleted" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -146,7 +135,7 @@ export class QuotationController {
       const user = this.getUser(req);
       const id = Number(req.params.id);
 
-      if (!id) throw new Error("Invalid ID");
+      if (!id) throw new BusinessError("Invalid ID")
 
       const { status } = req.body;
 
@@ -157,11 +146,7 @@ export class QuotationController {
         user.business_id,
       );
 
-      res.json({
-        success: true,
-        message: "Status updated",
-        data,
-      });
+      successResponse({ res, data: data, message: "Status updated" });
     } catch (err: any) {
       this.handleError(res, err);
     }
@@ -176,15 +161,12 @@ export class QuotationController {
       const quotationId = Number(req.query.quotationId);
 
       if (!itemId || !quotationId) {
-        throw new Error("Invalid IDs");
+        throw new BusinessError("Invalid IDs")
       }
 
       await this.service.deleteItem(itemId, quotationId, user.business_id);
 
-      res.json({
-        success: true,
-        message: "Item deleted",
-      });
+      successResponse({ res, message: "Item deleted" });
     } catch (err: any) {
       this.handleError(res, err);
     }

@@ -1,18 +1,19 @@
+import { catchAsync } from "../../utils/catchAsync";
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Request, Response } from "express";
 import * as service from "./audit.service";
 
 /* GET ACTION COUNTS */
-export const getAuditCounts = async (
+export const getAuditCounts = catchAsync(async (
   req: Request,
   res: Response
 ) => {
   const { module, record_id } = req.query;
 
   if (!module || !record_id) {
-    return res.status(400).json({
-      success: false,
-      message: "module and record_id are required",
-    });
+    throw new BusinessError("module and record_id are required", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
 
   const data = await service.fetchActionCounts(
@@ -20,21 +21,18 @@ export const getAuditCounts = async (
     Number(record_id)
   );
 
-  res.json({ success: true, data });
-};
+  successResponse({ res, data: data });
+});
 
 /* GET FULL HISTORY */
-export const getAuditHistory = async (
+export const getAuditHistory = catchAsync(async (
   req: Request,
   res: Response
 ) => {
   const { module, record_id } = req.query;
 
   if (!module || !record_id) {
-    return res.status(400).json({
-      success: false,
-      message: "module and record_id are required",
-    });
+    throw new BusinessError("module and record_id are required", ErrorCodes.BUSINESS_RULE_VIOLATION);
   }
 
   const data = await service.fetchHistory(
@@ -42,5 +40,5 @@ export const getAuditHistory = async (
     Number(record_id)
   );
 
-  res.json({ success: true, data });
-};
+  successResponse({ res, data: data });
+});

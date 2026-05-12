@@ -1,7 +1,10 @@
+import { BusinessError } from "../../utils/appError";
 import axios from "axios";
 import { SupplierProductRepository } from "./supplierProduct.repository";
 import * as authRepo from "../../modules/auth/auth.repository";
 import { getAuthHeaders } from "../../utils/getAuthHeaders";
+import { SupplierService } from "../suppliers/supplier.service";
+import { getAllBusinesses } from "../business/business.service";
 
 type SupplierProductInput = {
   product_id: number;
@@ -21,24 +24,24 @@ export class SupplierProductService {
     const allowedStatus = ["in_stock", "out_of_stock", "order_based"];
 
     if (!item.product_id || !item.variant_id) {
-      throw new Error("product_id & variant_id required");
+      throw new BusinessError("Please select Product & Variant Type...");
     }
 
     if (item.cost_price == null || item.cost_price < 0) {
-      throw new Error("Invalid cost_price");
+      throw new BusinessError("Invalid cost_price");
     }
 
     if (!allowedStatus.includes(item.stock_status)) {
-      throw new Error("Invalid stock_status");
+      throw new BusinessError("Invalid stock_status");
     }
 
     if (item.stock_status === "order_based") {
       if (!item.pay_advance) {
-        throw new Error("pay_advance required for order_based");
+        throw new BusinessError("pay_advance required for order_based");
       }
 
       if (!item.lead_days) {
-        throw new Error("lead_days required for order_based");
+        throw new BusinessError("lead_days required for order_based");
       }
     } else {
       item.pay_advance = null;
@@ -53,7 +56,7 @@ export class SupplierProductService {
     supplierId: number,
   ) {
     if (!Array.isArray(data) || data.length === 0) {
-      throw new Error("Invalid data format");
+      throw new BusinessError("Invalid data format");
     }
 
     // 🔥 inject supplier_id
@@ -69,7 +72,7 @@ export class SupplierProductService {
       const key = `${item.product_id}-${item.variant_id}`;
 
       if (seen.has(key)) {
-        throw new Error("Duplicate product + variant in request");
+        throw new BusinessError("Duplicate product + variant in request");
       }
 
       seen.add(key);
@@ -82,28 +85,19 @@ export class SupplierProductService {
 
   // 🔹 LIST
   async getAll(userId: number) {
-    const user = await authRepo.getUserById(userId);
+    const businessRes = await getAllBusinesses(userId);
 
-    const headers = await getAuthHeaders();
-
-    const supplierRes = await axios.get(
-      "https://user.jobes24x7.com/api/suppliers",
-      {
-        headers: {
-          ...headers,
-          Authorization: `Bearer ${user.central_token}`,
-        },
-      },
-    );
-
-    const supplierList = supplierRes.data?.data?.data || [];
+    const businessList = businessRes?.data || [];
 
     const supplierMap = new Map(
-      supplierList.map((s: any) => {
-        const key = s.business_cre_id || Number(String(s.id).split("-")[1]);
+      businessList.map((s: any) => {
+        const key = Number(s.id);
 
         const name =
-          s.business_name || s.supplier_name || s.company_name || "Unknown";
+          s.business_name?.trim() ||
+          s.company_name?.trim() ||
+          s.supplier_name?.trim() ||
+          `Business ${s.id}`;
 
         return [key, name];
       }),
@@ -113,33 +107,25 @@ export class SupplierProductService {
 
     return rows.map((r: any) => ({
       ...r,
-      supplier_name: supplierMap.get(r.supplier_id) || null,
+
+      supplier_name: supplierMap.get(Number(r.supplier_id)) || "Unknown",
     }));
   }
 
   async getMyProducts(userId: number, supplierId: number) {
-    const user = await authRepo.getUserById(userId);
+    const businessRes = await getAllBusinesses(userId);
 
-    const headers = await getAuthHeaders();
-
-    const supplierRes = await axios.get(
-      "https://user.jobes24x7.com/api/suppliers",
-      {
-        headers: {
-          ...headers,
-          Authorization: `Bearer ${user.central_token}`,
-        },
-      },
-    );
-
-    const supplierList = supplierRes.data?.data?.data || [];
+    const businessList = businessRes?.data || [];
 
     const supplierMap = new Map(
-      supplierList.map((s: any) => {
-        const key = s.business_cre_id || Number(String(s.id).split("-")[1]);
+      businessList.map((s: any) => {
+        const key = Number(s.id);
 
         const name =
-          s.business_name || s.supplier_name || s.company_name || "Unknown";
+          s.business_name?.trim() ||
+          s.company_name?.trim() ||
+          s.supplier_name?.trim() ||
+          `Business ${s.id}`;
 
         return [key, name];
       }),
@@ -149,7 +135,8 @@ export class SupplierProductService {
 
     return rows.map((r: any) => ({
       ...r,
-      supplier_name: supplierMap.get(r.supplier_id) || null,
+
+      supplier_name: supplierMap.get(Number(r.supplier_id)) || "Unknown",
     }));
   }
 
@@ -163,12 +150,12 @@ export class SupplierProductService {
     const existing = await this.repo.getById(id);
 
     if (!existing) {
-      throw new Error("Record not found");
+      throw new BusinessError("Record not found");
     }
 
     // 🔒 ownership check
     if (existing.supplier_id !== supplierId) {
-      throw new Error("Unauthorized");
+      throw new BusinessError("Unauthorized");
     }
 
     // 🔥 lock product & variant

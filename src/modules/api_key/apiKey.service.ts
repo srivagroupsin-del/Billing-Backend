@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import axios from "axios";
 import * as repo from "./apiKey.repo";
 import { normalizeInput } from "../../utils/token.util";
@@ -15,7 +16,7 @@ export const createOrUpdate = async (body: any) => {
   let { service_name, platform_type, api_key, expires_at } = body;
 
   if (!service_name || !platform_type || !api_key || !expires_at) {
-    throw new Error("All fields are required");
+    throw new BusinessError("All fields are required");
   }
 
   const normalized = normalizeInput(service_name, platform_type);
@@ -61,7 +62,7 @@ const fetchTokensWithRetry = async (retries = 3) => {
     });
   } catch (err) {
     if (retries > 0) {
-      console.log(`🔁 Retry... (${retries})`);
+      console.log(` Retry... (${retries})`);
       await new Promise((r) => setTimeout(r, 2000));
       return fetchTokensWithRetry(retries - 1);
     }
@@ -77,7 +78,7 @@ export const syncFromRegistry = async () => {
     const { data } = await fetchTokensWithRetry();
 
     if (!data?.data || !Array.isArray(data.data)) {
-      throw new Error("Invalid token registry response");
+      throw new BusinessError("Invalid token registry response");
     }
 
     await Promise.all(
@@ -97,13 +98,9 @@ export const syncFromRegistry = async () => {
       }),
     );
 
-    console.log("✅ Registry sync completed");
+    console.log(" Registry sync completed");
   } catch (err: any) {
-    console.error(
-      "❌ Registry sync failed:",
-      err?.response?.status,
-      err?.message,
-    );
+    console.error("Registry sync failed:", err?.response?.status, err?.message);
   }
 };
 
@@ -130,7 +127,7 @@ export const getActiveApiKey = async (
     normalized.platform_type,
   );
 
-  if (!data) throw new Error("No active token found");
+  if (!data) throw new BusinessError("No active token found");
 
   cache.set(key, {
     token: data.access_token,

@@ -164,8 +164,19 @@ export class StockRepository {
 
   async getVariants(stockId: number) {
     const [rows]: any = await pool.execute(
-      `SELECT * FROM product_stock_variants
-       WHERE stock_id = ? AND is_deleted = 0`,
+      `
+    SELECT 
+      psv.*,
+      vm.name as variant_name
+
+    FROM product_stock_variants psv
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = psv.variant_id
+
+    WHERE psv.stock_id = ?
+    AND psv.is_deleted = 0
+    `,
       [stockId],
     );
 
@@ -289,17 +300,25 @@ export class StockRepository {
     if (!stockIds.length) return [];
 
     const [rows]: any = await pool.query(
-      `SELECT 
-      id,
-      stock_id,
-      variant_id,
-      buying_price,
-      profit_margin,
-      selling_price,
-      qty
-     FROM product_stock_variants
-     WHERE stock_id IN (?) 
-     AND is_deleted = 0`,
+      `
+    SELECT 
+      psv.id,
+      psv.stock_id,
+      psv.variant_id,
+      vm.name as variant_name,
+      psv.buying_price,
+      psv.profit_margin,
+      psv.selling_price,
+      psv.qty
+
+    FROM product_stock_variants psv
+
+    LEFT JOIN product_variant_master vm
+      ON vm.id = psv.variant_id
+
+    WHERE psv.stock_id IN (?) 
+    AND psv.is_deleted = 0
+    `,
       [stockIds],
     );
 
@@ -347,5 +366,21 @@ export class StockRepository {
   `,
       [data.qty, data.stock_id],
     );
+  }
+
+  async checkVariantBelongsToBusiness(variantId: number, businessId: number) {
+    const [rows]: any = await pool.execute(
+      `
+    SELECT id
+    FROM product_variant_master
+    WHERE id = ?
+    AND business_id = ?
+    AND is_deleted = 0
+    LIMIT 1
+    `,
+      [variantId, businessId],
+    );
+
+    return rows.length > 0;
   }
 }

@@ -64,7 +64,7 @@ export class SupplierProductRepository {
         ON p.id = spm.product_id
 
       LEFT JOIN product_variant_master vm
-        ON vm.id = spm.variant_id
+        ON vm.id = spm.variant_id AND vm.is_deleted = 0
 
       WHERE spm.is_deleted = 0
 
@@ -98,9 +98,9 @@ export class SupplierProductRepository {
       ON p.id = spm.product_id
 
     LEFT JOIN product_variant_master vm
-      ON vm.id = spm.variant_id
+      ON vm.id = spm.variant_id AND vm.is_deleted = 0
 
-    WHERE spm.supplier_id = ?   -- ✅ FILTER
+    WHERE spm.supplier_id = ?   --  FILTER
     AND spm.is_deleted = 0
 
     ORDER BY spm.id DESC

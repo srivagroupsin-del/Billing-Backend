@@ -59,10 +59,10 @@ export class ProductAllocationRepository {
     bpa.min_sale_qty,
     bpa.max_sale_qty,
 
-    -- ✅ Alternative Names
+    --  Alternative Names
     pan.alternative_name,
 
-    -- ✅ GST
+    --  GST
     pt.id AS tax_id,
     pt.gst_variant_id,
     vf.value AS gst_value,
@@ -83,11 +83,11 @@ JOIN srivagroupsin_product_db_2.brand b
 JOIN srivagroupsin_product_db_2.product p 
     ON p.id = bpa.product_id
 
--- ✅ Alternative names
+--  Alternative names
 LEFT JOIN srivagroupsin_product_db_2.product_alternative_names pan
     ON pan.product_id = p.id
 
--- ✅ Tax
+--  Tax
 LEFT JOIN srivagroupsin_product_db_2.product_tax pt
     ON pt.product_id = p.id
     AND pt.is_active = 1

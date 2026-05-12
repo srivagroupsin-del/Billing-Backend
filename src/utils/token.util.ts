@@ -1,3 +1,4 @@
+import { BusinessError } from ".//appError";
 // utils/token.util.ts
 
 export const getPrefix = (platform: string) => {
@@ -9,7 +10,7 @@ export const getPrefix = (platform: string) => {
     case "DESKTOP":
       return "D_";
     default:
-      throw new Error("Invalid platform");
+      throw new BusinessError("Invalid platform")
   }
 };
 

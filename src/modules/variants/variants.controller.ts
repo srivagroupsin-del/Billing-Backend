@@ -1,22 +1,21 @@
-import { Request, Response } from "express";
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
+import { Response } from "express";
+import { AuthRequest } from "../../middlewares/auth.middlewares";
 import { VariantsService } from "./variants.service";
 
 export class VariantsController {
   private service = new VariantsService();
 
-  getAll = async (_req: Request, res: Response) => {
+  getAll = async (req: AuthRequest, res: Response) => {
     try {
-      const data = await this.service.getAll();
+      const businessId = req.user?.business_id;
+      const data = await this.service.getAll(businessId!);
 
-      res.json({
-        success: true,
-        data,
-      });
+      successResponse({ res, data: data });
     } catch (err: any) {
-      res.status(500).json({
-        success: false,
-        message: err.message,
-      });
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
   };
 }

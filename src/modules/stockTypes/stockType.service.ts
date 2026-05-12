@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import { StockTypeRepository } from "./stockType.repository";
 
 export class StockTypeService {
@@ -18,9 +19,10 @@ export class StockTypeService {
   async deleteStockType(id: number, businessId: number) {
     return this.repository.deleteStockType(id, businessId);
   }
+
   async getStockTypesByStock(businessId: number, stockId: number) {
     if (!stockId) {
-      throw new Error("stock_id is required");
+      throw new BusinessError("stock_id is required")
     }
 
     return this.repository.getStockTypesByStock(businessId, stockId);

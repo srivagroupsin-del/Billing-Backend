@@ -1,33 +1,36 @@
+import { catchAsync } from "../../utils/catchAsync";
+import { successResponse } from "../../utils/response";
+import { BusinessError } from "../../utils/appError";
+import { ErrorCodes } from "../../utils/errorCodes";
 import { Response } from "express";
 import { AuthRequest } from "../../middlewares/auth.middlewares";
 import * as service from "./businessCategoryGroup.service";
 
-export const getBusinessCategoryGroups = async (
-  req: AuthRequest,
-  res: Response,
-) => {
-  try {
-    const businessId = req.user?.business_id;
-    const userId = req.user?.id; // ✅ ADD THIS
+export const getBusinessCategoryGroups = catchAsync(
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const businessId = req.user?.business_id;
+      const userId = req.user?.id; //  ADD THIS
 
-    if (!businessId) {
-      return res.status(400).json({
-        success: false,
-        message: "Please select a business",
-      });
+      if (!businessId) {
+        throw new BusinessError(
+          "Please select a business",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
+      }
+
+      if (!userId) {
+        throw new BusinessError(
+          "Unauthorized",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
+      }
+
+      const data = await service.getBusinessCategoryGroups(businessId, userId);
+
+      successResponse({ res, data: data });
+    } catch (err: any) {
+      throw new BusinessError(err.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
     }
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
-
-    const data = await service.getBusinessCategoryGroups(businessId, userId);
-
-    res.json({ success: true, data });
-  } catch (err: any) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-};
+  },
+);

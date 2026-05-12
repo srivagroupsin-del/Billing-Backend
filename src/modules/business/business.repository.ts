@@ -42,7 +42,7 @@ export const getBusinessesByUserId = async (userId: number) => {
     [userId],
   );
 
-  return rows; // ✅ LIST
+  return rows; //  LIST
 };
 
 export const getAllOperationTypes = async () => {

@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import axios from "axios";
 import * as authRepo from "../auth/auth.repository";
 import { getAuthHeaders } from "../../utils/getAuthHeaders";
@@ -7,20 +8,20 @@ export const getBusinessList = async (userId: number) => {
   const user = await authRepo.getUserById(userId);
 
   if (!user) {
-    throw new Error("User not found");
+    throw new BusinessError("User not found");
   }
 
   if (!user.central_token) {
-    throw new Error("Central token missing");
+    throw new BusinessError("Central token missing");
   }
 
   if (!user.user_id) {
-    throw new Error("user_main_id missing");
+    throw new BusinessError("user_main_id missing");
   }
 
   // 🔒 Expiry check
   if (new Date(user.central_token_expiry) < new Date()) {
-    throw new Error("Session expired. Please login again.");
+    throw new BusinessError("Session expired. Please login again.");
   }
 
   const headers = await getAuthHeaders();
@@ -40,7 +41,7 @@ export const getBusinessList = async (userId: number) => {
   const apiData = response.data?.data;
 
   if (!apiData || apiData.result !== "Success") {
-    throw new Error("Failed to fetch business list");
+    throw new BusinessError("Failed to fetch business list");
   }
 
   return apiData.data; // 🔥 actual business array
@@ -50,14 +51,14 @@ export const getAllBusinesses = async (userId: number) => {
   // 🔹 Get user
   const user = await authRepo.getUserById(userId);
 
-  if (!user) throw new Error("User not found");
+  if (!user) throw new BusinessError("User not found");
 
   if (!user.central_token) {
-    throw new Error("Central token missing");
+    throw new BusinessError("Central token missing");
   }
 
   if (new Date(user.central_token_expiry) < new Date()) {
-    throw new Error("Session expired. Please login again.");
+    throw new BusinessError("Session expired. Please login again.");
   }
 
   const headers = await getAuthHeaders();
@@ -77,7 +78,7 @@ export const getAllBusinesses = async (userId: number) => {
   const apiData = response.data?.data;
 
   if (!apiData || apiData.result !== "Success") {
-    throw new Error("Failed to fetch businesses");
+    throw new BusinessError("Failed to fetch businesses");
   }
 
   return {

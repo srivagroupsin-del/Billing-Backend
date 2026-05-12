@@ -276,7 +276,7 @@ Products can later be stored at:
 
 R1 → S1 → C1 → A2
 
-✅ This format is ready to send to frontend developers.
+ This format is ready to send to frontend developers.
 
 Storage Module API Guide (Frontend)
 Base URL

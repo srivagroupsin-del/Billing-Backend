@@ -1,3 +1,4 @@
+import { BusinessError } from "../../utils/appError";
 import pool from "../../config/db";
 import { QuotationRepository } from "./quotation.repository";
 
@@ -6,21 +7,21 @@ export class QuotationService {
 
   validate(data: any) {
     if (!data.request_date || !data.validity_date) {
-      throw new Error("Missing required fields");
+      throw new BusinessError("Missing required fields")
     }
 
     if (!Array.isArray(data.items) || data.items.length === 0) {
-      throw new Error("Items required");
+      throw new BusinessError("Items required")
     }
 
     const ids = data.items.map((i: any) => i.supplier_product_mapping_id);
     if (new Set(ids).size !== ids.length) {
-      throw new Error("Duplicate products in quotation");
+      throw new BusinessError("Duplicate products in quotation")
     }
 
     data.items.forEach((item: any) => {
       if (!item.supplier_product_mapping_id || !item.quantity) {
-        throw new Error("Invalid item data");
+        throw new BusinessError("Invalid item data")
       }
     });
   }
@@ -108,7 +109,7 @@ export class QuotationService {
     const allowed = ["pending", "accepted", "rejected", "expired"];
 
     if (!allowed.includes(status)) {
-      throw new Error("Invalid status");
+      throw new BusinessError("Invalid status")
     }
 
     return await this.repo.updateStatus(id, status, userId, supplierId);

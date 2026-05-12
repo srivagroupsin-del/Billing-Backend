@@ -1,3 +1,4 @@
+import { BusinessError } from ".//appError";
 import pool from "../config/db";
 
 export type Status = "active" | "inactive" | "blocked";
@@ -22,7 +23,7 @@ export const updateStatusById = async (
   ];
 
   if (!allowedTables.includes(table)) {
-    throw new Error("Invalid table name");
+    throw new BusinessError("Invalid table name")
   }
 
   await pool.query(
