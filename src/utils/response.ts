@@ -24,15 +24,15 @@ export const successResponse = ({
 };
 
 export const paginationResponse = (res: Response, data: any[], total: number, page: number, limit: number, message = "Data fetched successfully") => {
-    return successResponse({
-        res,
-        message,
-        data,
-        meta: {
-            total,
-            page,
-            limit,
-            totalPages: Math.ceil(total / limit)
-        }
-    });
+  return successResponse({
+    res,
+    message,
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    }
+  });
 };

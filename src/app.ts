@@ -30,9 +30,14 @@ import quotation from "./modules/quotation/quotation.routes";
 import supplierRequest from "./modules/supplierRequest/supplierRequest.routes";
 import apiKeyRoutes from "./modules/api_key/apiKey.routes";
 import variantsRoutes from "./modules/variants/variants.routes";
+import userAppData from "./modules/appvalidation/app_validation_routes";
+import storeRoutes from "./modules/store/store.routes";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import { syncFromRegistry } from "./modules/api_key/apiKey.service";
+
+import userTokenRoutes from "./modules/userTokens/userTokens.routes";
+import applicationKeyRoutes from "./modules/applicationKeys/applicationKeys.routes";
 
 const app: Application = express();
 
@@ -93,7 +98,9 @@ app.use("/api/auth", authRoutes);
 // 🔐 Admin
 app.use("/api/admin/api-key", apiKeyRoutes);
 
-// 🔥 ADD HERE (after setup, before routes or after routes both fine)
+// 🔓 Public API Keys & Tokens
+app.use("/api/user-tokens", userTokenRoutes);
+app.use("/api/application-keys", applicationKeyRoutes);
 
 let isSyncing = false;
 
@@ -144,6 +151,8 @@ app.use("/api/supplierProduct", authMiddleware, supplierProduct);
 app.use("/api/quotation", authMiddleware, quotation);
 app.use("/api/supplierRequest", authMiddleware, supplierRequest);
 app.use("/api/variants", variantsRoutes);
+app.use("/api/userAppData", userAppData);
+app.use("/api/stores", storeRoutes);
 
 // Static uploads
 app.use("/uploads", express.static("uploads"));

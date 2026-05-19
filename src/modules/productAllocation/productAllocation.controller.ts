@@ -16,13 +16,24 @@ export class ProductAllocationController {
     try {
       const businessId = req.user?.business_id;
       if (!businessId)
-        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
 
       const ids = await this.service.allocateProducts(businessId, req.body);
 
-      successResponse({ res, data: ids, message: "Products allocated", statusCode: 201 });
+      successResponse({
+        res,
+        data: ids,
+        message: "Products allocated",
+        statusCode: 201,
+      });
     } catch (error: any) {
-      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 
@@ -31,13 +42,62 @@ export class ProductAllocationController {
       const businessId = req.user?.business_id;
 
       if (!businessId)
-        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
 
       const data = await this.service.getAllocatedProducts(businessId!);
 
-      successResponse({ res, data: data, message: "Allocated products fetched", statusCode: 200 });
+      successResponse({
+        res,
+        data: data,
+        message: "Allocated products fetched",
+        statusCode: 200,
+      });
     } catch (error: any) {
-      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
+    }
+  };
+
+  getAllocatedProductById = async (req: AuthRequest, res: Response) => {
+    try {
+      const businessId = req.user?.business_id;
+      const productId = Number(req.params.product_id);
+
+      if (!businessId) {
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
+      }
+
+      if (!productId) {
+        throw new BusinessError(
+          "Product ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
+      }
+
+      const data = await this.service.getAllocatedProductById(
+        businessId,
+        productId,
+      );
+
+      successResponse({
+        res,
+        data,
+        message: "Allocated product fetched",
+        statusCode: 200,
+      });
+    } catch (error: any) {
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 
@@ -46,15 +106,26 @@ export class ProductAllocationController {
       const businessId = req.user?.business_id;
 
       if (!businessId)
-        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
 
       const { id } = req.params;
 
       await this.service.updateAllocation(Number(id), businessId!, req.body);
 
-      successResponse({ res, data: {}, message: "Allocation updated", statusCode: 200 });
+      successResponse({
+        res,
+        data: {},
+        message: "Allocation updated",
+        statusCode: 200,
+      });
     } catch (error: any) {
-      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 
@@ -62,15 +133,26 @@ export class ProductAllocationController {
     try {
       const businessId = req.user?.business_id;
       if (!businessId)
-        throw new BusinessError("Business ID missing", ErrorCodes.BUSINESS_RULE_VIOLATION);
+        throw new BusinessError(
+          "Business ID missing",
+          ErrorCodes.BUSINESS_RULE_VIOLATION,
+        );
 
       const { id } = req.params;
 
       await this.service.deleteAllocation(Number(id), businessId!);
 
-      successResponse({ res, data: {}, message: "Allocation deleted", statusCode: 200 });
+      successResponse({
+        res,
+        data: {},
+        message: "Allocation deleted",
+        statusCode: 200,
+      });
     } catch (error: any) {
-      throw new BusinessError(error.message, ErrorCodes.BUSINESS_RULE_VIOLATION);
+      throw new BusinessError(
+        error.message,
+        ErrorCodes.BUSINESS_RULE_VIOLATION,
+      );
     }
   };
 }

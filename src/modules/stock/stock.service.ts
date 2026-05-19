@@ -312,13 +312,11 @@ export class StockService {
       variantList.forEach((v: any) => {
         const existing = typeMap[v.id] || [];
 
-        v.stock_types = existing
-          .filter((t: any) => Number(t.qty) > 0)
-          .map((t: any) => ({
-            stock_type_id: t.stock_type_id,
-            name: t.name,
-            qty: Number(t.qty),
-          }));
+        v.stock_types = existing.map((t: any) => ({
+          stock_type_id: t.stock_type_id,
+          name: t.name,
+          qty: Number(t.qty),
+        }));
 
         // 🔥 VARIANT TOTAL
         v.total_qty = v.stock_types.reduce(
@@ -328,48 +326,43 @@ export class StockService {
       });
     });
 
-    return stocks
-      .map((row: any) => {
-        // 🔥 REMOVE EMPTY VARIANTS
-        const variants = (variantMap[row.stock_id] || []).filter(
-          (v: any) => v.total_qty > 0,
-        );
+    return stocks.map((row: any) => {
+      // 🔥 REMOVE EMPTY VARIANTS
+      const variants = variantMap[row.stock_id] || [];
 
-        // 🔥 STOCK TOTAL
-        const total_qty = variants.reduce(
-          (sum: number, v: any) => sum + Number(v.total_qty || 0),
-          0,
-        );
+      // 🔥 STOCK TOTAL
+      const total_qty = variants.reduce(
+        (sum: number, v: any) => sum + Number(v.total_qty || 0),
+        0,
+      );
 
-        return {
-          id: row.stock_id,
+      return {
+        id: row.stock_id,
 
-          product_id: row.product_id,
+        product_id: row.product_id,
 
-          product_name:
-            productMap.get(Number(row.product_id))?.name || row.product_name,
+        product_name:
+          productMap.get(Number(row.product_id))?.name || row.product_name,
 
-          base_image:
-            productMap.get(Number(row.product_id))?.base_image || null,
+        base_image: productMap.get(Number(row.product_id))?.base_image || null,
 
-          dynamic_fields:
-            productMap.get(Number(row.product_id))?.dynamic_fields || [],
+        dynamic_fields:
+          productMap.get(Number(row.product_id))?.dynamic_fields || [],
 
-          created_at: row.created_at,
+        created_at: row.created_at,
 
-          supplier: row.supplier_id
-            ? {
-                id: row.supplier_id,
-                name: supplierMap.get(Number(row.supplier_id)) || "Unknown",
-              }
-            : null,
+        supplier: row.supplier_id
+          ? {
+              id: row.supplier_id,
+              name: supplierMap.get(Number(row.supplier_id)) || "Unknown",
+            }
+          : null,
 
-          total_qty,
+        total_qty,
 
-          variants,
-        };
-      })
-      .filter((s: any) => s.total_qty > 0);
+        variants,
+      };
+    });
   }
 
   async getStockById(stockId: number, businessId: number) {

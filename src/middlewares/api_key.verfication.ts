@@ -38,23 +38,28 @@ export const verifyApiKey = catchAsync(
         );
       }
 
-      //  DB validation
-      const [rows]: any = await apiDb.query(
-        `SELECT id FROM api_keys 
-       WHERE access_token=? 
-       AND service_name=? 
-       AND platform_type=? 
-       AND is_active=1
-       AND expires_at > UTC_TIMESTAMP()
-       LIMIT 1`,
-        [apiKey, serviceName, platform],
-      );
+      let apiRowId: number | null = null;
 
-      if (!rows.length) {
-        throw new BusinessError(
-          "Invalid or expired API key",
-          ErrorCodes.BUSINESS_RULE_VIOLATION,
+      if (platform === "WEB" || apiKey.startsWith("W_")) {
+        //  DB validation (Only for WEB)
+        const [rows]: any = await apiDb.query(
+          `SELECT id FROM api_keys 
+         WHERE access_token=? 
+         AND service_name=? 
+         AND platform_type=? 
+         AND is_active=1
+         AND expires_at > UTC_TIMESTAMP()
+         LIMIT 1`,
+          [apiKey, serviceName, platform],
         );
+
+        if (!rows.length) {
+          throw new BusinessError(
+            "Invalid or expired API key",
+            ErrorCodes.BUSINESS_RULE_VIOLATION,
+          );
+        }
+        apiRowId = rows[0].id;
       }
 
       //  attach caller info
@@ -63,12 +68,54 @@ export const verifyApiKey = catchAsync(
         platform,
       };
 
+      // 📱 Mobile Specific Validation
+      if (platform === "MOBILE" || apiKey.startsWith("M_")) {
+        const appKey =
+          req.header("x-app-key") || req.header("x-application-key");
+        const userToken = req.header("x-user-token");
+
+        if (!appKey || !userToken) {
+          throw new BusinessError(
+            "Missing x-app-key or x-user-token headers for MOBILE platform",
+            ErrorCodes.BUSINESS_RULE_VIOLATION,
+          );
+        }
+
+        // Validate App Key
+        const [appKeyRows]: any = await apiDb.query(
+          `SELECT id FROM application_keys WHERE app_key=? AND is_deleted=0 LIMIT 1`,
+          [appKey],
+        );
+
+        if (!appKeyRows.length) {
+          throw new BusinessError(
+            "Invalid application key",
+            ErrorCodes.BUSINESS_RULE_VIOLATION,
+          );
+        }
+
+        // Validate User Token
+        const [userTokenRows]: any = await apiDb.query(
+          `SELECT id FROM user_tokens WHERE user_token=? AND is_deleted=0 LIMIT 1`,
+          [userToken],
+        );
+
+        if (!userTokenRows.length) {
+          throw new BusinessError(
+            "Invalid user token",
+            ErrorCodes.BUSINESS_RULE_VIOLATION,
+          );
+        }
+      }
+
       // 🔄 async update
-      apiDb
-        .query("UPDATE api_keys SET last_used_at=NOW() WHERE id=?", [
-          rows[0].id,
-        ])
-        .catch(() => {});
+      if (apiRowId) {
+        apiDb
+          .query("UPDATE api_keys SET last_used_at=NOW() WHERE id=?", [
+            apiRowId,
+          ])
+          .catch(() => {});
+      }
 
       next();
     } catch (err) {

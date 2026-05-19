@@ -148,6 +148,70 @@ export class ProductAllocationService {
     return this.buildProductTree(rows, productMap);
   }
 
+  async getAllocatedProductById(businessId: number, productId: number) {
+    // 🔥 get all allocated products
+    const rows = await this.repository.getAllocatedProducts(businessId);
+
+    // 🔥 fetch product details
+    const productIds: number[] = [
+      ...new Set<number>(
+        rows
+          .map((r: any) => Number(r.product_id))
+          .filter((id: number) => !isNaN(id)),
+      ),
+    ];
+
+    const products = await fetchBulkProductDetails(productIds);
+
+    const productMap = new Map<number, any>(
+      products.map((p: any) => [Number(p.id), p]),
+    );
+
+    // 🔥 build nested tree
+    const tree = this.buildProductTree(rows, productMap);
+
+    // 🔥 filter requested product only
+    const filtered = tree
+      .map((group: any) => ({
+        ...group,
+        Categories: {
+          primary: (group.Categories?.primary || [])
+            .map((cat: any) => ({
+              ...cat,
+              Brand: (cat.Brand || [])
+                .map((brand: any) => ({
+                  ...brand,
+                  Products: (brand.Products || []).filter(
+                    (p: any) => p.id === productId,
+                  ),
+                }))
+                .filter((b: any) => b.Products.length > 0),
+            }))
+            .filter((c: any) => c.Brand.length > 0),
+
+          secondary: (group.Categories?.secondary || [])
+            .map((cat: any) => ({
+              ...cat,
+              Brand: (cat.Brand || [])
+                .map((brand: any) => ({
+                  ...brand,
+                  Products: (brand.Products || []).filter(
+                    (p: any) => p.id === productId,
+                  ),
+                }))
+                .filter((b: any) => b.Products.length > 0),
+            }))
+            .filter((c: any) => c.Brand.length > 0),
+        },
+      }))
+      .filter(
+        (g: any) =>
+          g.Categories.primary.length > 0 || g.Categories.secondary.length > 0,
+      );
+
+    return filtered;
+  }
+
   async updateAllocation(id: number, businessId: number, data: any) {
     return await this.repository.updateAllocation(id, businessId, data);
   }

@@ -1,25 +1,12 @@
 import { BusinessError } from "../../utils/appError";
 import * as repo from "./product.repository";
-import QRCode from "qrcode";
-import PDFDocument from "pdfkit";
-import path from "path";
-import fs from "fs";
-import { logAudit } from "../audit/audit.service";
-import pool from "../../config/db";
-import { ensureUniqueActive } from "../../utils/uniqueCheck";
 import axios from "axios";
-import { getAuthHeaders, getProductHeaders } from "../../utils/getAuthHeaders";
+import { getProductHeaders } from "../../utils/getAuthHeaders";
 
-/* =========================================
-   FETCH ALL PRODUCTS
-========================================= */
 export const fetchProducts = async (search: string = "") => {
   return repo.getProducts(search);
 };
 
-/* =========================================
-   FETCH SINGLE PRODUCT
-========================================= */
 export const fetchProductById = async (id: number) => {
   const rows = await repo.getProductById(id);
 

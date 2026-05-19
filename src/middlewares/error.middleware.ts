@@ -7,7 +7,7 @@ export const globalErrorHandler = (
   err: any,
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   // Internal logging. Not sent to frontend.
   console.error("🔥 Error Handling Middleware:", err);
@@ -24,21 +24,26 @@ export const globalErrorHandler = (
     errors = err.errors;
   } else {
     // Handling specific common external/library errors
-    if (err.name === 'ValidationError') {
-       statusCode = 400;
-       message = 'Validation failed';
-       errorCode = ErrorCodes.VALIDATION_ERROR;
-    } else if (err.name === 'JsonWebTokenError') {
-       statusCode = 401;
-       message = 'Invalid token';
-       errorCode = ErrorCodes.TOKEN_INVALID;
-    } else if (err.name === 'TokenExpiredError') {
-       statusCode = 401;
-       message = 'Token expired';
-       errorCode = ErrorCodes.TOKEN_EXPIRED;
+    if (err.name === "ValidationError") {
+      statusCode = 400;
+      message = "Validation failed";
+      errorCode = ErrorCodes.VALIDATION_ERROR;
+    } else if (err.name === "JsonWebTokenError") {
+      statusCode = 401;
+      message = "Invalid token";
+      errorCode = ErrorCodes.TOKEN_INVALID;
+    } else if (err.name === "TokenExpiredError") {
+      statusCode = 401;
+      message = "Token expired";
+      errorCode = ErrorCodes.TOKEN_EXPIRED;
     }
     // We intentionally don't expose DB errors (e.g., MySQL or ORM errors)
   }
 
-  throw new BusinessError("Operation failed", ErrorCodes.BUSINESS_RULE_VIOLATION);
+  res.status(statusCode).json({
+    success: false,
+    message: message,
+    errorCode: errorCode,
+    errors: errors,
+  });
 };
